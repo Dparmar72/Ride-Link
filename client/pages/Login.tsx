@@ -65,8 +65,12 @@ function useOtp() {
       setStatusMsg({ text: "⏳ Sending OTP...", type: "default" });
 
       const requestType = isLoginMode ? "login" : "register";
-      const response = await fetch(`http://localhost:9090/api/auth/send-otp?email=${email}&type=${requestType}`, {
+
+      // 🔥 SECURE FIX: Sending Email and Type in JSON Body 🔥
+      const response = await fetch("http://localhost:9090/api/auth/send-otp", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email, type: requestType })
       });
 
       if (!response.ok) {
@@ -101,9 +105,12 @@ function useOtp() {
   return { send, seconds, isSending, statusMsg, reset };
 }
 
+// 🔥 SECURE FIX: OTP Verification using JSON Body instead of Request Params 🔥
 const verifyOtpBackend = async (email: string, otp: string) => {
-  const response = await fetch(`http://localhost:9090/api/auth/verify-otp?email=${email}&otp=${otp}`, {
-    method: "POST"
+  const response = await fetch("http://localhost:9090/api/auth/verify-otp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: email, otp: otp })
   });
   if (!response.ok) throw new Error("Invalid or Expired OTP");
   return true;
@@ -113,7 +120,6 @@ const verifyOtpBackend = async (email: string, otp: string) => {
 const uploadToCloudinary = async (file: File) => {
   const formData = new FormData();
   formData.append("file", file);
-
 
   formData.append("upload_preset", "RideLink_docs");
   const cloudName = "dnfu7zadq";
@@ -175,6 +181,8 @@ export default function Login() {
   const onLoginSubmit = async (data: LoginValues) => {
     try {
       setIsSubmitting(true);
+
+      // Ye function ab secure JSON body use karega
       await verifyOtpBackend(data.email, data.otp);
 
       const response = await fetch("http://localhost:9090/api/auth/login", {
@@ -201,7 +209,7 @@ export default function Login() {
         role: assignedRole,
         email: authData.email,
         name: authData.fullName || authData.name || "User",
-        kycStatus: authData.kycStatus || "PENDING" // 🔥 Added KYC Status
+        kycStatus: authData.kycStatus || "PENDING"
       }));
 
       toast.success("Successfully logged in!");
@@ -313,7 +321,10 @@ export default function Login() {
   const onRegisterSubmit = async (data: RegistrationValues) => {
     try {
       setIsSubmitting(true);
+
+      // Ye function ab secure JSON body use karega
       await verifyOtpBackend(data.email, data.otp);
+
       setRegistrationData(data);
       toast.success("OTP Verified! Choose your role.");
       go("role");
@@ -357,7 +368,6 @@ export default function Login() {
               <Input type="file" className="h-9 text-xs" onChange={(e) => setDocs(d => ({...d, license: e.target.files?.[0]}))} />
               <Input type="file" className="h-9 text-xs" onChange={(e) => setDocs(d => ({...d, rc: e.target.files?.[0]}))} />
             </div>
-            {/* 🔥 Changed onClick to onRiderKycSubmit 🔥 */}
             <Button className="w-full h-9 text-sm" onClick={onRiderKycSubmit} disabled={isSubmitting}>
               {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verifying...</> : "Verify & Continue"}
             </Button>

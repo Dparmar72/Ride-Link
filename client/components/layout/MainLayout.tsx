@@ -8,7 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
-import { Menu, Leaf, TrendingUp, LogOut, ShieldCheck } from "lucide-react";
+import { Menu, Leaf, TrendingUp, LogOut, ShieldCheck, Car, MapIcon } from "lucide-react"; // 🔥 Added MapIcon
 
 function useAuth() {
   const location = useLocation();
@@ -50,7 +50,7 @@ function Header() {
   }, [location.pathname]);
 
   const linkBase =
-    "px-3 py-2 text-sm font-medium text-foreground/80 hover:text-foreground";
+    "px-3 py-2 text-sm font-medium text-foreground/80 hover:text-foreground flex items-center gap-1.5 transition-colors";
 
   const logout = () => {
     localStorage.removeItem("ridelink:auth");
@@ -58,12 +58,17 @@ function Header() {
     navigate("/login");
   };
 
+  // Roles identification
+  const roleString = String(auth?.role || "").toUpperCase();
+  const isDriver = auth && (roleString.includes("RIDER") || roleString.includes("DRIVER"));
+  // Passenger dashboard ko har logged in user dekh sake, ya isko restrict kar sakte hain
+  const isPassenger = auth && !roleString.includes("ADMIN");
+
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      {/* 🔥 UI SIZE FIX: h-16 ko h-14 kiya aur padding kam ki 🔥 */}
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-3 sm:px-4 lg:px-6">
         <Link to="/" className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
+          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-sm">
             <Leaf className="h-5 w-5" />
           </div>
           <span className="text-xl font-extrabold tracking-tight">
@@ -71,12 +76,31 @@ function Header() {
           </span>
         </Link>
 
-        <nav className="hidden items-center gap-1 md:flex">
-          <NavLink to="/" className={({ isActive }) => cn(linkBase, isActive && "text-foreground")}>Home</NavLink>
-          <NavLink to="/search" className={({ isActive }) => cn(linkBase, isActive && "text-foreground")}>Search</NavLink>
-          <NavLink to="/post-ride" className={({ isActive }) => cn(linkBase, isActive && "text-foreground")}>Post a ride</NavLink>
-          <NavLink to="/safety" className={({ isActive }) => cn(linkBase, isActive && "text-foreground")}>Safety</NavLink>
-          <NavLink to="/about" className={({ isActive }) => cn(linkBase, isActive && "text-foreground")}>About</NavLink>
+        <nav className="hidden items-center gap-2 md:flex">
+          <NavLink to="/" className={({ isActive }) => cn(linkBase, isActive && "text-primary font-bold")}>Home</NavLink>
+
+          <NavLink to="/book" className={({ isActive }) => cn(linkBase, isActive && "text-primary font-bold")}>
+            Book a ride
+          </NavLink>
+
+          <NavLink to="/post-ride" className={({ isActive }) => cn(linkBase, isActive && "text-primary font-bold")}>Post a ride</NavLink>
+
+          {/* 🔥 Passenger Dashboard Link 🔥 */}
+          {isPassenger && (
+            <NavLink to="/passenger-dashboard" className={({ isActive }) => cn(linkBase, isActive && "text-primary font-bold text-blue-600", !isActive && "text-blue-600/80")}>
+              <MapIcon className="h-4 w-4 mr-0.5" /> My Rides
+            </NavLink>
+          )}
+
+          {/* Driver Dashboard Link */}
+          {isDriver && (
+            <NavLink to="/driver-dashboard" className={({ isActive }) => cn(linkBase, isActive && "text-primary font-bold text-emerald-600", !isActive && "text-emerald-600/80")}>
+              <Car className="h-4 w-4 mr-0.5" /> Driver Hub
+            </NavLink>
+          )}
+
+          <NavLink to="/safety" className={({ isActive }) => cn(linkBase, isActive && "text-primary font-bold")}>Safety</NavLink>
+          <NavLink to="/about" className={({ isActive }) => cn(linkBase, isActive && "text-primary font-bold")}>About</NavLink>
         </nav>
 
         <div className="flex items-center gap-2">
@@ -96,8 +120,8 @@ function Header() {
           {auth && (
             <div className="flex items-center gap-3">
 
-              {/* 🔥 ADMIN PORTAL BUTTON FIX (Case Insensitive & Null Safe) 🔥 */}
-              {String(auth?.role || "").toUpperCase().includes("ADMIN") && (
+              {/* ADMIN PORTAL BUTTON */}
+              {roleString.includes("ADMIN") && (
                 <Link
                   to="/admin/verify"
                   className="flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-red-700 active:scale-95"
@@ -153,8 +177,7 @@ function Footer() {
             <span className="text-base font-semibold">RideLink</span>
           </div>
           <p className="text-center text-sm text-muted-foreground md:text-right">
-            Efficient, affordable and eco‑friendly ride pooling for daily
-            commutes.
+            Efficient, affordable and eco‑friendly ride pooling for daily commutes.
           </p>
         </div>
       </div>
@@ -177,7 +200,16 @@ export default function MainLayout() {
     if (auth) return;
     if (location.pathname === "/login") return;
 
-    const protectedPrefixes = ["/search", "/post-ride", "/account", "/admin"];
+    // 🔥 Added /passenger-dashboard to protected routes 🔥
+    const protectedPrefixes = [
+      "/search",
+      "/post-ride",
+      "/account",
+      "/admin",
+      "/book",
+      "/driver-dashboard",
+      "/passenger-dashboard"
+    ];
 
     const requiresAuth = protectedPrefixes.some((path) => {
       if (location.pathname === path) return true;
@@ -192,8 +224,12 @@ export default function MainLayout() {
 
     const roleHints: Record<string, "user" | "rider"> = {
       "/search": "user",
+      "/book": "user",
+      "/passenger-dashboard": "user",
       "/post-ride": "rider",
+      "/driver-dashboard": "rider",
     };
+
     const hintedRole = Object.entries(roleHints).find(([path]) => {
       if (location.pathname === path) return true;
       return location.pathname.startsWith(`${path}/`);

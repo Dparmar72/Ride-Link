@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/rides")
@@ -63,5 +64,26 @@ public class RideController {
     public ResponseEntity<List<Ride>> getRidesByDriver(@PathVariable Long driverId) {
         List<Ride> rides = rideService.getRidesByDriverId(driverId);
         return ResponseEntity.ok(rides);
+    }
+
+    @PostMapping("/search-instant")
+    public ResponseEntity<List<Ride>> searchInstantRides(@RequestBody Map<String, Object> requestData) {
+
+        // Frontend se aaye hue exact coordinates ko nikal rahe hai
+        Double pLat = Double.valueOf(requestData.get("pickupLat").toString());
+        Double pLng = Double.valueOf(requestData.get("pickupLng").toString());
+        Double dLat = Double.valueOf(requestData.get("dropLat").toString());
+        Double dLng = Double.valueOf(requestData.get("dropLng").toString());
+
+        // Passenger ko kitni seats chahiye (agar na bheje toh default 1)
+        Integer seats = 1;
+        if (requestData.containsKey("seats")) {
+            seats = Integer.valueOf(requestData.get("seats").toString());
+        }
+
+        // Service ko call karke MySQL se matched rides lao
+        List<Ride> matchedRides = rideService.searchInstantCarpools(pLat, pLng, dLat, dLng, seats);
+
+        return ResponseEntity.ok(matchedRides);
     }
 }

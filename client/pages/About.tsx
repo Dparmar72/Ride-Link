@@ -2,6 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import L from "leaflet";
 import {
   Leaf,
   Mail,
@@ -15,7 +17,23 @@ import {
   MessageCircle,
 } from "lucide-react";
 
+// --- Leaflet Icon Fix ---
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
+
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconUrl: markerIcon,
+  iconRetinaUrl: markerIcon2x,
+  shadowUrl: markerShadow,
+});
+// ------------------------
+
 export default function About() {
+  // Headquarters Location (Indore)
+  const hqCoords: [number, number] = [22.7196, 75.8577];
+
   return (
     <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
       <div className="flex items-start justify-between gap-4">
@@ -102,7 +120,7 @@ export default function About() {
             </div>
             <div className="flex items-center gap-2">
               <MapPin className="h-4 w-4" />
-              Jaipur, Rajasthan, India
+              Indore, Madhya Pradesh, India
             </div>
             <p className="pt-2 text-muted-foreground">
               Support hours: Mon–Sat, 9:00–18:00 IST
@@ -181,18 +199,48 @@ export default function About() {
         </Card>
       </div>
 
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <TrendingUp className="h-5 w-5 text-primary" /> Our vision
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-muted-foreground">
-          We aim to reduce single‑occupancy travel by connecting trusted
-          commuters on the same route. With city partnerships and community
-          feedback, we’re scaling responsibly across regions.
-        </CardContent>
-      </Card>
+      {/* Vision & Map Section */}
+      <div className="mt-8 grid gap-6 md:grid-cols-2">
+        <Card className="flex flex-col">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <TrendingUp className="h-5 w-5 text-primary" /> Our vision
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-muted-foreground flex-1">
+            We aim to reduce single‑occupancy travel by connecting trusted
+            commuters on the same route. With city partnerships and community
+            feedback, we’re scaling responsibly across regions.
+          </CardContent>
+        </Card>
+
+        {/* --- NAYA MAP CARD --- */}
+        <Card className="overflow-hidden shadow-lg border-primary/20">
+          <CardHeader className="bg-slate-50 border-b pb-4">
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <MapPin className="h-5 w-5 text-primary" /> Our Headquarters
+            </CardTitle>
+          </CardHeader>
+          <div className="h-64 w-full relative z-0">
+            <MapContainer
+              center={hqCoords}
+              zoom={13}
+              scrollWheelZoom={false}
+              style={{ height: "100%", width: "100%", backgroundColor: "#403d3d" }}
+            >
+              <TileLayer
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='&copy; OpenStreetMap'
+              />
+              <Marker position={hqCoords}>
+                <Popup className="font-bold text-slate-800">
+                  RideLink HQ <br /> Indore, MP
+                </Popup>
+              </Marker>
+            </MapContainer>
+          </div>
+        </Card>
+      </div>
     </section>
   );
 }

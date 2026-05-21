@@ -4,7 +4,7 @@ import com.Ridelink.RideLink.DTO.*;
 import com.Ridelink.RideLink.Entity.User;
 import com.Ridelink.RideLink.Repository.UserRepository;
 import com.Ridelink.RideLink.Security.JwtUtil;
-import com.Ridelink.RideLink.Service.EmailService; // Naya Import
+import com.Ridelink.RideLink.Service.EmailService;
 import com.Ridelink.RideLink.Service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -48,10 +48,9 @@ public class AuthController {
                 new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword()));
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
-        String jwt = jwtUtils.generateToken(loginRequest.getEmail());
-
         User userDetails = userRepository.findByEmail(loginRequest.getEmail()).orElseThrow();
 
+        String jwt = jwtUtils.generateToken(userDetails.getEmail(), userDetails.getRole());
         return ResponseEntity.ok(new JwtResponse(jwt,
                 userDetails.getId(),
                 userDetails.getEmail(),
@@ -82,8 +81,16 @@ public class AuthController {
 
 
     @PostMapping("/send-otp")
-    public ResponseEntity<?> sendOtp(@RequestParam String email, @RequestParam(defaultValue = "register") String type) {
+    public ResponseEntity<?> sendOtp(@RequestBody SendOtpRequestDto request) {
         try {
+            // Null check and default value handling
+            String email = request.getEmail();
+            if (email == null || email.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(new MessageResponse("Email is required"));
+            }
+
+            String type = request.getType() != null ? request.getType() : "register";
+
             String normalizedEmail = email.trim().toLowerCase();
             boolean userExists = userRepository.existsByEmail(normalizedEmail);
 
@@ -112,8 +119,12 @@ public class AuthController {
         }
     }
 
+
     @PostMapping("/verify-otp")
-    public ResponseEntity<?> verifyOtp(@RequestParam String email, @RequestParam String otp) {
+    public ResponseEntity<?> verifyOtp(@RequestBody VerifyAuthOtpRequestDto request) {
+        String email = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : "";
+        String otp = request.getOtp();
+
         String storedOtp = otpStorage.get(email);
 
         if (storedOtp != null && storedOtp.equals(otp)) {

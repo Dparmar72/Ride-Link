@@ -9,4 +9,6 @@ public interface RideService {
     List<Ride> searchRides(String source, String destination, LocalDateTime departureTime);
     Ride getRideById(Long id);
     List<Ride> getRidesByDriverId(Long driverId);
+    public List<Ride> searchInstantCarpools(Double pLat, Double pLng, Double dLat, Double dLng, Integer seats) ;
+     double calculateDistance(double lat1, double lon1, double lat2, double lon2);
 }

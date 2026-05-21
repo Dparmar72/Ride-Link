@@ -1,5 +1,5 @@
 package com.Ridelink.RideLink.Entity;
 
 public enum BookingStatus {
-    CONFIRMED, CANCELLED, COMPLETED
+   PENDING, CONFIRMED, CANCELLED, COMPLETED
 }

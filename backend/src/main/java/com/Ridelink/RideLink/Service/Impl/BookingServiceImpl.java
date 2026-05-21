@@ -1,5 +1,6 @@
 package com.Ridelink.RideLink.Service.Impl;
 
+import com.Ridelink.RideLink.DTO.BookingRequest;
 import com.Ridelink.RideLink.Entity.Booking;
 import com.Ridelink.RideLink.Entity.BookingStatus;
 import com.Ridelink.RideLink.Entity.Ride;
@@ -11,6 +12,7 @@ import com.Ridelink.RideLink.Repository.BookingRepository;
 import com.Ridelink.RideLink.Repository.RideRepository;
 import com.Ridelink.RideLink.Repository.UserRepository;
 import com.Ridelink.RideLink.Service.BookingService;
+import com.Ridelink.RideLink.Service.RideService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,26 +28,30 @@ public class BookingServiceImpl implements BookingService {
     @Autowired
     private BookingRepository bookingRepository;
 
+
+
     @Autowired
     private RideRepository rideRepository;
 
     @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private RideService rideService;
 
     @Override
     @Transactional
-    public Booking bookRide(Long rideId, Long passengerId, Integer seatsBooked) {
-        Ride ride = rideRepository.findById(rideId)
+    public Booking bookRide(BookingRequest bookingRequest) {
+        Ride ride = rideRepository.findById(bookingRequest.getRideId())
                 .orElseThrow(() -> new ResourceNotFoundException("Ride not found"));
 
-        User passenger = userRepository.findById(passengerId)
+        User passenger = userRepository.findById(bookingRequest.getPassengerId())
                 .orElseThrow(() -> new ResourceNotFoundException("Passenger not found"));
 
         if (ride.getAvailableSeats() <= 0) {
             throw new BadRequestException("Ride is full!");
         }
 
-        if (ride.getDriver().getId().equals(passengerId)) {
+        if (ride.getDriver().getId().equals(bookingRequest.getPassengerId())) {
             throw new BadRequestException("Driver cannot book their own ride.");
         }
 
@@ -53,16 +59,21 @@ public class BookingServiceImpl implements BookingService {
         booking.setRide(ride);
         booking.setPassenger(passenger);
         booking.setBookingTime(LocalDateTime.now());
-        booking.setStatus(BookingStatus.CONFIRMED);
+        booking.setStatus(BookingStatus.PENDING);
         booking.setPaid(false); // Default payment status false rahega
-        booking.setSeatsBooked(seatsBooked);
+        booking.setSeatsBooked(bookingRequest.getSeatsBooked());
+        booking.setDropLatitude(bookingRequest.getDropLat());
+        booking.setDropLongitude(bookingRequest.getDropLng());
+        booking.setPickupLatitude(bookingRequest.getPickupLat());
+        booking.setPickupLongitude(bookingRequest.getPickupLng());
+        booking.setPrice(bookingRequest.getPrice());
 
         // OTP Generate Logic (4 Digit)
         String otp = String.format("%04d", new Random().nextInt(10000));
         booking.setRideOtp(otp);
 
         // Seat Minus Logic
-        ride.setAvailableSeats(ride.getAvailableSeats() - seatsBooked);
+        ride.setAvailableSeats(ride.getAvailableSeats() - bookingRequest.getSeatsBooked());
         if (ride.getAvailableSeats() == 0) {
             ride.setStatus(RideStatus.FULL);
         }
@@ -107,4 +118,103 @@ public class BookingServiceImpl implements BookingService {
     public List<Booking> getBookingsByRideId(Long rideId){
         return bookingRepository.findByRideId(rideId);
     }
+
+
+    @Override
+    public List<Booking> getPendingRequestsForDriver(Long driverId) {
+        return bookingRepository.findByDriverIdAndStatus(driverId, BookingStatus.PENDING);
+    }
+
+    @Transactional
+    @Override
+    public Booking acceptBooking(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking nahi mili"));
+
+        booking.setStatus(BookingStatus.CONFIRMED);
+        return bookingRepository.save(booking);
+    }
+
+    @Transactional
+    @Override
+    public Booking rejectBooking(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking nahi mili"));
+
+        booking.setStatus(BookingStatus.CANCELLED);
+
+        // Agar driver reject kar rha h, toh seats wapas khali karo rides table me
+        Ride ride = booking.getRide();
+        ride.setAvailableSeats(ride.getAvailableSeats() + booking.getSeatsBooked());
+        if (ride.getStatus() == RideStatus.FULL) {
+            ride.setStatus(RideStatus.OPEN);
+        }
+        rideRepository.save(ride);
+
+        autoForwardToNextDriver(booking);
+
+        return bookingRepository.save(booking);
+    }
+
+    @Override
+    public Booking cancelBookingByPassenger(Long bookingId) {
+         Booking booking = bookingRepository.findById(bookingId)
+                 .orElseThrow(()->new RuntimeException("Booking not found"));
+
+         booking.setStatus(BookingStatus.CANCELLED);
+          Ride ride = booking.getRide();
+          ride.setAvailableSeats(ride.getAvailableSeats() + booking.getSeatsBooked());
+          rideRepository.save(ride);
+          return bookingRepository.save(booking);
+    }
+
+    @Override
+    public void autoForwardToNextDriver(Booking failedBooking) {
+
+        Long currentDriverId = failedBooking.getRide().getDriver().getId();
+
+        List<Ride> alternativeDrivers = rideRepository.findInstantCarpools(
+                failedBooking.getPickupLatitude(),
+                failedBooking.getPickupLongitude(),
+                failedBooking.getDropLatitude(),
+                failedBooking.getDropLongitude(),
+                3000,
+                failedBooking.getSeatsBooked()
+        );
+
+        Ride nextBestRide = null;
+
+        for(Ride r: alternativeDrivers) {
+            if(!r.getDriver().getId().equals(currentDriverId) && r.getAvailableSeats()>=failedBooking.getSeatsBooked()) {
+                double distToPickup = rideService.calculateDistance(r.getSourceLatitude(), r.getSourceLongitude(), failedBooking.getPickupLatitude(), failedBooking.getPickupLongitude());
+                double distToDrop = rideService.calculateDistance(r.getSourceLatitude(), r.getSourceLongitude(), failedBooking.getDropLatitude(), failedBooking.getDropLongitude());
+
+                if (distToPickup < distToDrop) {
+                    nextBestRide = r;
+                    break; // Agla best matched driver mil gaya!
+                }
+            }
+
+
+        }
+
+        if (nextBestRide != null) {
+
+            Ride oldRide = failedBooking.getRide();
+            oldRide.setAvailableSeats(oldRide.getAvailableSeats() + failedBooking.getSeatsBooked());
+            rideRepository.save(oldRide);
+
+            nextBestRide.setAvailableSeats(nextBestRide.getAvailableSeats() - failedBooking.getSeatsBooked());
+            rideRepository.save(nextBestRide);
+
+            failedBooking.setRide(nextBestRide);
+            failedBooking.setStatus(BookingStatus.PENDING);
+            bookingRepository.save(failedBooking);
+
+            System.out.println("🚀 Request auto-forwarded to Driver ID: " + nextBestRide.getDriver().getId());
+        } else {
+            System.out.println("❌ No alternative drivers found on this route.");
+        }
+    }
+
 }

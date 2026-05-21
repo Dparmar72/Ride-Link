@@ -32,6 +32,13 @@ public class Booking {
     @Enumerated(EnumType.STRING)
     private BookingStatus status;
 
+    private Double pickupLatitude;
+    private Double pickupLongitude;
+    private Double dropLatitude;
+    private Double dropLongitude;
+
+    private Double price;
+
     private Integer seatsBooked;
 
     private String paymentId;

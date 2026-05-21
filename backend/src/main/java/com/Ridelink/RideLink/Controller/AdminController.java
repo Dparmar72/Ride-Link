@@ -12,11 +12,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.time.LocalDateTime;
+
 
 @RestController
 @RequestMapping("/api/admin")
-@PreAuthorize("hasRole('ADMIN')")
 @CrossOrigin(origins = "*", allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE})
 public class AdminController {
 
@@ -52,6 +52,7 @@ public class AdminController {
         }
     }
 
+
     @PutMapping("/verify-driver/{userId}")
     public ResponseEntity<?> verifyDriver(@PathVariable Long userId, @RequestParam String status) {
         try {
@@ -62,7 +63,14 @@ public class AdminController {
                                     .body(new MessageResponse("Error: User is not a Driver."));
                         }
 
+                        // Status update karna
                         user.setKycStatus(status.toUpperCase());
+
+                        //  Agar Approve hua, toh aaj ki date set kar do
+                        if (status.equalsIgnoreCase("APPROVED")) {
+                            user.setKycVerifiedAt(LocalDateTime.now());
+                        }
+
                         userRepository.save(user);
 
                         String message = status.equalsIgnoreCase("APPROVED")
@@ -93,6 +101,32 @@ public class AdminController {
             return ResponseEntity.ok(stats);
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Error fetching stats");
+        }
+    }
+
+    @GetMapping("/verified-drivers")
+    public ResponseEntity<?> getVerifiedDrivers() {
+        try {
+            List<User> users = userRepository.findAll();
+            List<Map<String, Object>> response = new ArrayList<>();
+
+            for (User u : users) {
+                if (u.getRole() != null && u.getRole().contains("DRIVER") && "APPROVED".equals(u.getKycStatus())) {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", u.getId());
+                    map.put("fullName", u.getFullName());
+                    map.put("email", u.getEmail());
+                    map.put("phone", u.getPhone());
+                    map.put("licenseUrl", u.getLicenseUrl());
+                    map.put("rcUrl", u.getRcUrl());
+                    map.put("kycAppliedAt", u.getKycAppliedAt()); // Apply date
+                    map.put("kycVerifiedAt", u.getKycVerifiedAt()); // Verify date
+                    response.add(map);
+                }
+            }
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error: " + e.getMessage());
         }
     }
 }

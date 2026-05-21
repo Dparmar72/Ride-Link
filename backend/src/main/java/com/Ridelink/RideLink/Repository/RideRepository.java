@@ -27,4 +27,25 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
     );
 
     List<Ride> findByDriverId(Long driverId);
+
+    // point(longitude, latitude) - MySQL me ulta hota hai isliye pehle lng fir lat diya hai
+    @Query(value =
+            "SELECT * FROM rides r " +
+                    "WHERE r.status = 'OPEN' " + // Ensure tumhare RideStatus enum me OPEN ho
+                    "AND r.available_seats >= :requiredSeats " +
+                    // Pickup match: 3 KM (radius) ke andar koi nikal raha hai kya?
+                    "AND ST_Distance_Sphere(point(r.source_longitude, r.source_latitude), point(:pLng, :pLat)) <= :radius " +
+                    // Drop match: 3 KM (radius) ke andar koi jaa raha hai kya?
+                    "AND ST_Distance_Sphere(point(r.destination_longitude, r.destination_latitude), point(:dLng, :dLat)) <= :radius " +
+                    // Jo sabse pass se nikal raha ho wo list me sabse upar aaye
+                    "ORDER BY ST_Distance_Sphere(point(r.source_longitude, r.source_latitude), point(:pLng, :pLat)) ASC",
+            nativeQuery = true)
+    List<Ride> findInstantCarpools(
+            @Param("pLat") Double passengerPickupLat,
+            @Param("pLng") Double passengerPickupLng,
+            @Param("dLat") Double passengerDropLat,
+            @Param("dLng") Double passengerDropLng,
+            @Param("radius") Integer radiusInMeters,
+            @Param("requiredSeats") Integer requiredSeats
+    );
 }

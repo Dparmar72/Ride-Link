@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "users")
 @Getter
@@ -38,11 +40,19 @@ public class User {
     @Column(name = "kyc_status")
     private String kycStatus = "PENDING"; // PENDING, APPROVED, REJECTED
 
+    @Column(name = "kyc_applied_at")
+    private LocalDateTime kycAppliedAt;
+
+    @Column(name = "kyc_verified_at")
+    private LocalDateTime kycVerifiedAt;
+
     @Column(name = "license_url")
     private String licenseUrl;
 
     @Column(name = "rc_url")
     private String rcUrl;
+
+
 
     @Column(name = "vehicle_number")
     private String vehicleNumber;

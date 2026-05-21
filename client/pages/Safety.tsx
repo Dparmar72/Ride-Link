@@ -10,7 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Input } from "@/components/ui/input"; // Input import kiya
+import { Input } from "@/components/ui/input";
 import {
   ShieldCheck,
   IdCard,
@@ -39,24 +39,36 @@ interface AuthUser {
   rcUrl?: string | null;
 }
 
-// --- CLOUDINARY UPLOAD HELPER ---
-const uploadToCloudinary = async (file: File) => {
-  const formData = new FormData();
-  formData.append("file", file);
+// 🔥 --- NAYA SUPABASE UPLOAD HELPER --- 🔥
+const uploadToSupabase = async (file: File) => {
+  // Yahan apne Supabase project ki details daalein
+  const SUPABASE_URL = "https://olgkfbkfnllcnbnhudqg.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_BalJPa6ypUv8uk96Cg4X2w_xU68Oo8E";
+  const BUCKET_NAME = "KYC-Document";
 
-  // 🔥 APNI DETAILS YAHAN DAALEIN 🔥
-  formData.append("upload_preset", "RideLink_docs");
-  const cloudName = "dnfu7zadq";
+  // File ka naam unique banane ke liye Date.now() lagaya
+  const fileName = `${Date.now()}_${file.name.replace(/\s+/g, "_")}`;
 
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+  // Supabase Storage REST API call
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET_NAME}/${fileName}`, {
     method: "POST",
-    body: formData,
+    headers: {
+      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+      "apikey": SUPABASE_ANON_KEY,
+      "Content-Type": file.type, // PDF ya Image jo bhi ho, uska type automatically chala jayega
+    },
+    body: file,
   });
 
-  if (!res.ok) throw new Error("Image upload failed");
-  const data = await res.json();
-  return data.secure_url;
+  if (!res.ok) {
+    const errData = await res.json();
+    throw new Error(errData.message || "Supabase upload failed");
+  }
+
+  // Upload hone ke baad Public URL return karna
+  return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET_NAME}/${fileName}`;
 };
+
 
 function readAuth(): AuthUser | null {
   try {
@@ -103,13 +115,14 @@ export default function Safety() {
 
     try {
       setIsUploading(true);
-      toast.info("Uploading documents to Cloudinary...");
+      toast.info("Uploading documents securely...");
 
-      // 1. Upload to Cloudinary
-      const licenseUrl = await uploadToCloudinary(files.license);
-      const rcUrl = await uploadToCloudinary(files.rc);
+      // 1. Upload to Supabase instead of Cloudinary
+      const licenseUrl = await uploadToSupabase(files.license);
+      const rcUrl = await uploadToSupabase(files.rc);
 
       // 2. Backend Update
+      // Note: Ensure this is the correct endpoint path (api/auth/update-kyc ya api/user/update-kyc)
       const response = await fetch(`http://localhost:9090/api/auth/update-kyc?userId=${auth.id}`, {
         method: "PUT",
         headers: {
@@ -134,7 +147,8 @@ export default function Safety() {
         throw new Error("Failed to update backend");
       }
     } catch (error) {
-      toast.error("Upload failed. Try again.");
+      console.error("Upload error:", error);
+      toast.error("Upload failed. Please check your network and try again.");
     } finally {
       setIsUploading(false);
     }
@@ -168,7 +182,7 @@ export default function Safety() {
                 <DocBadge status={auth?.kycStatus || ""} />
               </div>
 
-              {/* File Inputs - Visible only for Riders */}
+              {/* File Inputs - Visible only for Riders/Drivers */}
               {auth?.role?.toLowerCase().includes("rider") || auth?.role?.toLowerCase().includes("driver") ? (
                 <div className="space-y-3 pt-2 border-t">
                   <p className="text-xs font-bold text-muted-foreground uppercase">Update Documents</p>
@@ -228,7 +242,7 @@ export default function Safety() {
         </Card>
       </div>
 
-      {/* FAQs Section - (Pehle wala Accordion yahan rahega) */}
+      {/* FAQs Section */}
       <Card className="mt-6">
         <CardHeader>
           <CardTitle className="text-xl">Safety Guidelines</CardTitle>
