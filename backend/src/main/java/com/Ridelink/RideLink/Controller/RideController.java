@@ -86,4 +86,16 @@ public class RideController {
 
         return ResponseEntity.ok(matchedRides);
     }
+
+    @PutMapping("/{rideId}/complete")
+     public ResponseEntity<?> completeRide(@PathVariable Long rideId) {
+        try {
+            rideService.completeRide(rideId);
+        }
+        catch (Exception e){
+            ResponseEntity.badRequest().body(e.getMessage());
+        }
+
+        return ResponseEntity.ok().build();
+    }
 }

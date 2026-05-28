@@ -7,13 +7,17 @@ import com.Ridelink.RideLink.Security.JwtUtil;
 import com.Ridelink.RideLink.Service.EmailService;
 import com.Ridelink.RideLink.Service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
@@ -40,6 +44,8 @@ public class AuthController {
 
     // Temporary storage for OTPs
     private final Map<String, String> otpStorage = new ConcurrentHashMap<>();
+    @Autowired
+    private UserDetailsService userDetailsService;
 
 
     @PostMapping("/login")
@@ -49,9 +55,13 @@ public class AuthController {
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
         User userDetails = userRepository.findByEmail(loginRequest.getEmail()).orElseThrow();
+        UserDetails userDetails1 = userDetailsService.loadUserByUsername(userDetails.getEmail());
 
         String jwt = jwtUtils.generateToken(userDetails.getEmail(), userDetails.getRole());
-        return ResponseEntity.ok(new JwtResponse(jwt,
+        String refreshToken = jwtUtils.generateRefreshToken(userDetails1);
+        return ResponseEntity.ok(new JwtResponse(
+                jwt,
+                refreshToken,
                 userDetails.getId(),
                 userDetails.getEmail(),
                 userDetails.getFullName(),
@@ -147,5 +157,42 @@ public class AuthController {
                     return ResponseEntity.ok(new MessageResponse("KYC Documents updated and sent for verification!"));
                 })
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+
+    @PostMapping("/refresh-token")
+    public ResponseEntity<?> refreshToken(@RequestBody Map<String, String> request) {
+        String refreshToken = request.get("refreshToken");
+
+        if (refreshToken == null) {
+            return ResponseEntity.badRequest().body("Refresh token is missing");
+        }
+
+        try {
+            // 1. Refresh token se email/username nikalein
+            String username = jwtUtils.getUserNameFromJwtToken(refreshToken);
+
+            if (username != null) {
+                // 2. MySQL se user detail load karein
+                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+
+                // 3. Check karein ki refresh token valid aur unexpired hai ya nahi
+                if (jwtUtils.isTokenValid(refreshToken, userDetails)) {
+
+                    // 4. Sab theek hai toh Naya Access Token banao
+                    String newAccessToken = jwtUtils.generateToken(userDetails);
+
+                    // 5. Frontend ko dono tokens wapas bhej do
+                    Map<String, String> response = new HashMap<>();
+                    response.put("accessToken", newAccessToken);
+                    response.put("refreshToken", refreshToken); // Purana refresh token wapas bhej diya taaki frontend chala sake
+
+                    return ResponseEntity.ok(response);
+                }
+            }
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid Refresh Token");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Token Expired or Invalid");
+        }
     }
 }

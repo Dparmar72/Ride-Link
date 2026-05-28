@@ -1,298 +1,456 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Link } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input"; // NAYA IMPORT
-import { Button } from "@/components/ui/button"; // NAYA IMPORT
-import { Car, Ticket, Calendar, MapPin, IndianRupee, Users, Phone, Loader2, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  Car, Ticket, MapPin, Users, Phone, Loader2,
+  ShieldCheck, CheckCircle2, ArrowRight, Clock,
+  IndianRupee, Hash, AlertCircle, Navigation
+} from "lucide-react";
 import { toast } from "sonner";
 
+/* ─── helpers ─────────────────────────────────────────────────────── */
 const maskPhone = (phone?: string) => {
   if (!phone) return "N/A";
   if (phone.length <= 3) return phone;
   return "*".repeat(phone.length - 3) + phone.slice(-3);
 };
 
+const safeArray = (val: any): any[] => (Array.isArray(val) ? val : []);
+
+/* ─── status pill ─────────────────────────────────────────────────── */
+const STATUS_STYLES: Record<string, string> = {
+  CONFIRMED:  "bg-emerald-50 text-emerald-700 border-emerald-200",
+  BOARDED:    "bg-blue-50 text-blue-700 border-blue-200",
+  PENDING:    "bg-amber-50 text-amber-700 border-amber-200",
+  CANCELLED:  "bg-red-50 text-red-600 border-red-200",
+  COMPLETED:  "bg-slate-100 text-slate-600 border-slate-200",
+};
+function StatusPill({ status }: { status?: string }) {
+  const s = (status || "PENDING").toUpperCase();
+  const cls = STATUS_STYLES[s] ?? "bg-slate-100 text-slate-600 border-slate-200";
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${cls}`}>
+      {s}
+    </span>
+  );
+}
+
+/* ─── empty state ─────────────────────────────────────────────────── */
+function Empty({ label }: { label: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-slate-200 py-14 text-slate-400">
+      <AlertCircle className="h-8 w-8 opacity-40" />
+      <p className="text-sm font-medium">{label}</p>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════ */
 export default function Account() {
-  const [myRides, setMyRides] = useState<any[]>([]);
+  const [myRides,    setMyRides]    = useState<any[]>([]);
   const [myBookings, setMyBookings] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading,  setIsLoading]  = useState(true);
 
-  // States for Popups
-  const [selectedRide, setSelectedRide] = useState<any>(null);
-  const [selectedBooking, setSelectedBooking] = useState<any>(null);
-  const [ridePassengers, setRidePassengers] = useState<any[]>([]);
-  const [isFetchingPassengers, setIsFetchingPassengers] = useState(false);
+  const [selectedRide,      setSelectedRide]      = useState<any>(null);
+  const [selectedBooking,   setSelectedBooking]   = useState<any>(null);
+  const [ridePassengers,    setRidePassengers]    = useState<any[]>([]);
+  const [isFetchingPass,    setIsFetchingPass]    = useState(false);
 
-  // 🔥 NAYE STATES: OTP verification ke liye 🔥
-  const [otpInputs, setOtpInputs] = useState<Record<number, string>>({});
+  const [otpInputs,   setOtpInputs]   = useState<Record<number, string>>({});
   const [verifyingId, setVerifyingId] = useState<number | null>(null);
 
   const authData = JSON.parse(localStorage.getItem("ridelink:auth") || "{}");
-  const userId = authData.id;
-  const token = authData.token;
+  const userId   = authData.id;
+  const token    = authData.token;
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      if (!userId || !token) {
-        setIsLoading(false);
-        return;
-      }
+    const load = async () => {
+      if (!userId || !token) { setIsLoading(false); return; }
       try {
         setIsLoading(true);
-        const headers = { "Authorization": `Bearer ${token}` };
+        const h = { Authorization: `Bearer ${token}` };
 
-        const ridesRes = await fetch(`http://localhost:9090/api/rides/driver/${userId}`, { headers });
-        setMyRides(await ridesRes.json());
+        const ridesRes    = await fetch(`http://localhost:9090/api/rides/driver/${userId}`,    { headers: h });
+        const ridesData   = await ridesRes.json();
+        setMyRides(safeArray(ridesData));
 
-        const bookingsRes = await fetch(`http://localhost:9090/api/bookings/user/${userId}`, { headers });
-        setMyBookings(await bookingsRes.json());
-      } catch (error) {
+        const bookingsRes  = await fetch(`http://localhost:9090/api/bookings/passenger/${userId}`, { headers: h });
+        const bookingsData = await bookingsRes.json();
+        setMyBookings(safeArray(bookingsData));
+      } catch {
         toast.error("Failed to load account data");
       } finally {
         setIsLoading(false);
       }
     };
-    fetchUserData();
+    load();
   }, [userId, token]);
 
   const handleRideClick = async (ride: any) => {
     setSelectedRide(ride);
-    setIsFetchingPassengers(true);
-    setOtpInputs({}); // Reset old OTP inputs
+    setRidePassengers([]);
+    setIsFetchingPass(true);
+    setOtpInputs({});
     try {
-      const response = await fetch(`http://localhost:9090/api/bookings/ride/${ride.id}`, {
-        headers: { "Authorization": `Bearer ${token}` }
+      const res  = await fetch(`http://localhost:9090/api/bookings/ride/${ride.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await response.json();
-      setRidePassengers(data);
-    } catch (error) {
+      const data = await res.json();
+      setRidePassengers(safeArray(data));
+    } catch {
       toast.error("Could not load passenger details");
     } finally {
-      setIsFetchingPassengers(false);
+      setIsFetchingPass(false);
     }
   };
 
-  // 🔥 NAYA FUNCTION: Driver OTP verify karega 🔥
   const handleVerifyOtp = async (bookingId: number) => {
-    const enteredOtp = otpInputs[bookingId];
-    if (!enteredOtp || enteredOtp.length < 4) {
-      toast.error("Please enter a valid 4-digit OTP");
-      return;
-    }
-
+    const otp = otpInputs[bookingId];
+    if (!otp || otp.length < 4) { toast.error("Please enter a valid 4-digit OTP"); return; }
+    setVerifyingId(bookingId);
     try {
-      setVerifyingId(bookingId);
-
-      // YAHAN BACKEND API CALL AAYEGI (Example)
-      /*
-      const response = await fetch(`http://localhost:9090/api/bookings/verify-boarding?bookingId=${bookingId}&otp=${enteredOtp}`, {
-        method: 'POST',
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      if(!response.ok) throw new Error("Invalid OTP!");
-      */
-
-      // Abhi ke liye hum UI mein success dikha rahe hain
-      toast.success("Passenger Verified Successfully!");
-
-      // Passenger list mein status update karne ka fake logic (Jab tak backend nahi banta)
-      setRidePassengers(prev => prev.map(p => p.id === bookingId ? { ...p, status: 'BOARDED' } : p));
-
-    } catch (error: any) {
-      toast.error(error.message || "Invalid OTP");
+      const res = await fetch(
+        `http://localhost:9090/api/bookings/verify-otp`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ rideId: selectedRide?.id, otp }),
+        }
+      );
+      if (!res.ok) throw new Error("Invalid OTP");
+      toast.success("Passenger verified successfully!");
+      setRidePassengers(prev =>
+        prev.map(p => p.id === bookingId ? { ...p, status: "BOARDED" } : p)
+      );
+    } catch (err: any) {
+      toast.error(err.message || "Invalid OTP");
     } finally {
       setVerifyingId(null);
     }
   };
 
-  if (isLoading) return (
-    <div className="flex h-[60vh] items-center justify-center text-muted-foreground">
-      <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading Account...
-    </div>
-  );
+  if (isLoading)
+    return (
+      <div className="flex h-[60vh] flex-col items-center justify-center gap-3 text-slate-400">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <p className="text-sm font-medium">Loading your account…</p>
+      </div>
+    );
 
+  const initials = (authData.name || authData.fullName || "U")
+    .split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase();
+
+  /* ══════════════════════════════════════════════════════════════ */
   return (
-    <div className="container mx-auto px-4 py-10 max-w-4xl">
-      {/* Profile Header */}
-      <div className="mb-8 flex items-center gap-4">
-        <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center text-2xl font-bold text-primary border border-primary/20">
-          {authData.name?.[0] || "U"}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white pb-16">
+      <div className="mx-auto max-w-3xl px-4 py-10">
+
+        {/* ── profile strip ──────────────────────────────────────── */}
+        <div className="mb-8 flex items-center gap-5 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
+          <Link
+            to="/profile"
+            className="flex items-center gap-4 flex-1 min-w-0 group"
+          >
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-xl font-black text-white shadow group-hover:bg-slate-700 transition-colors">
+              {initials}
+            </div>
+            <div className="flex-1 min-w-0">
+              <h1 className="truncate text-xl font-extrabold text-slate-900 tracking-tight group-hover:text-primary transition-colors underline-offset-2 group-hover:underline">
+                {authData.name || authData.fullName || "User"}
+              </h1>
+              <p className="truncate text-sm text-slate-500">{authData.email}</p>
+              <p className="text-[11px] font-semibold text-primary mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                View Profile →
+              </p>
+            </div>
+          </Link>
+          <span className="hidden sm:inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">
+            {authData.role || "USER"}
+          </span>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold">{authData.name || "User Name"}</h1>
-          <p className="text-sm text-muted-foreground">{authData.email}</p>
-          <Badge variant="secondary" className="mt-1 font-medium capitalize">{authData.role}</Badge>
-        </div>
+
+        {/* ── tabs ───────────────────────────────────────────────── */}
+        <Tabs defaultValue="bookings" className="w-full">
+          <TabsList className="mb-6 grid w-full grid-cols-2 rounded-xl bg-slate-100 p-1">
+            <TabsTrigger
+              value="bookings"
+              className="rounded-lg font-semibold gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+            >
+              <Ticket className="h-4 w-4" /> My Bookings
+            </TabsTrigger>
+            <TabsTrigger
+              value="rides"
+              className="rounded-lg font-semibold gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+            >
+              <Car className="h-4 w-4" /> My Rides
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ── bookings tab ─────────────────────────────────────── */}
+          <TabsContent value="bookings" className="space-y-3 focus-visible:outline-none">
+            {myBookings.length === 0 ? (
+              <Empty label="No bookings found yet." />
+            ) : (
+              myBookings.map((b: any) => (
+                <button
+                  key={b.id}
+                  onClick={() => setSelectedBooking(b)}
+                  className="w-full text-left rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99]"
+                >
+                  <div className="flex items-start justify-between gap-3 w-full">
+                    <div className="space-y-2 flex-1 min-w-0">
+                      {/* 🔥 FIX: Proper truncation logic for list view */}
+                      <div className="flex items-center gap-2 font-bold text-slate-800 text-sm w-full">
+                        <MapPin className="h-4 w-4 shrink-0 text-blue-500" />
+                        <span className="flex-1 truncate" title={b.ride?.sourceName}>{b.ride?.sourceName}</span>
+                        <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        <span className="flex-1 truncate" title={b.ride?.destinationName}>{b.ride?.destinationName}</span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatusPill status={b.status} />
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          {b.seatsBooked} seat{b.seatsBooked !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-lg font-extrabold text-slate-900">
+                        ₹{(b.ride?.pricePerSeat ?? 0) * (b.seatsBooked ?? 1)}
+                      </p>
+                      <p className="text-[10px] font-semibold text-blue-500 uppercase tracking-wide mt-0.5">
+                        Tap for OTP →
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              ))
+            )}
+          </TabsContent>
+
+          {/* ── rides tab ────────────────────────────────────────── */}
+          <TabsContent value="rides" className="space-y-3 focus-visible:outline-none">
+            {myRides.length === 0 ? (
+              <Empty label="No rides posted yet." />
+            ) : (
+              myRides.map((r: any) => (
+                <button
+                  key={r.id}
+                  onClick={() => handleRideClick(r)}
+                  className="w-full text-left rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99]"
+                >
+                  <div className="flex items-start justify-between gap-3 w-full">
+                    <div className="space-y-2 flex-1 min-w-0">
+                      {/* 🔥 FIX: Proper truncation logic for list view */}
+                      <div className="flex items-center gap-2 font-bold text-slate-800 text-sm w-full">
+                        <Car className="h-4 w-4 shrink-0 text-slate-500" />
+                        <span className="flex-1 truncate" title={r.sourceName}>{r.sourceName}</span>
+                        <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        <span className="flex-1 truncate" title={r.destinationName}>{r.destinationName}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-primary uppercase tracking-wide">
+                        <Users className="h-3 w-3" /> View passengers & verify OTP
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0 space-y-0.5">
+                      <p className="text-lg font-extrabold text-slate-900">₹{r.pricePerSeat}</p>
+                      <p className="text-[11px] text-slate-500 font-medium">{r.availableSeats} seat{r.availableSeats !== 1 ? "s" : ""} left</p>
+                    </div>
+                  </div>
+                </button>
+              ))
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
 
-      <Tabs defaultValue="bookings" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-8">
-          <TabsTrigger value="bookings" className="gap-2 font-semibold"><Ticket className="h-4 w-4" /> My Bookings</TabsTrigger>
-          <TabsTrigger value="rides" className="gap-2 font-semibold"><Car className="h-4 w-4" /> My Posted Rides</TabsTrigger>
-        </TabsList>
-
-        {/* --- MY BOOKINGS (PASSENGER VIEW) --- */}
-        <TabsContent value="bookings" className="space-y-4">
-          {myBookings.length === 0 ? (
-            <p className="text-center py-10 text-muted-foreground italic border-2 border-dashed rounded-xl">No bookings found.</p>
-          ) : (
-            myBookings.map((b: any) => (
-              <Card key={b.id} className="overflow-hidden border-l-4 border-l-blue-500 cursor-pointer hover:bg-slate-50/50" onClick={() => setSelectedBooking(b)} >
-                <CardContent className="p-5">
-                  <div className="flex justify-between items-center">
-                    <div className="space-y-1">
-                      <div className="font-semibold text-slate-800 flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-blue-500" /> {b.ride?.sourceName} → {b.ride?.destinationName}
-                      </div>
-                      <p className="text-[10px] text-blue-600 font-medium uppercase tracking-wider">Click for Ride Details & OTP</p>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant="secondary" className="text-[10px]">{b.seatsBooked} Seat(s)</Badge>
-                      <p className="text-sm font-bold mt-1">₹{b.ride?.pricePerSeat * b.seatsBooked}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </TabsContent>
-
-        {/* --- MY POSTED RIDES (DRIVER VIEW) --- */}
-        <TabsContent value="rides" className="space-y-4">
-          {myRides.length === 0 ? (
-            <p className="text-center py-10 text-muted-foreground italic border-2 border-dashed rounded-xl">No rides posted.</p>
-          ) : (
-            myRides.map((r: any) => (
-              <Card key={r.id} className="overflow-hidden border border-slate-200 cursor-pointer hover:bg-slate-50/50 shadow-sm" onClick={() => handleRideClick(r)}>
-                <CardContent className="p-5 flex justify-between items-center">
-                  <div className="space-y-1">
-                    <div className="font-semibold text-slate-800">{r.sourceName} → {r.destinationName}</div>
-                    <p className="text-[10px] text-primary font-medium uppercase tracking-wider flex items-center gap-1">
-                      <Users className="h-3 w-3" /> View passengers & Verify OTP
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs font-bold text-slate-600">{r.availableSeats} Left</p>
-                    <p className="text-sm font-semibold">₹{r.pricePerSeat}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </TabsContent>
-      </Tabs>
-
-      {/* --- MODAL 1: PASSENGER BOOKING DETAILS --- */}
+      {/* ════════════════════════════════════════════════════════════
+          MODAL 1 — Passenger: Booking / OTP
+          ════════════════════════════════════════════════════════════ */}
       <Dialog open={!!selectedBooking} onOpenChange={() => setSelectedBooking(null)}>
-        <DialogContent className="max-w-md">
-          {/* ... (Passenger Modal ka code waisa hi hai, OTP section niche hai) ... */}
-          <DialogHeader><DialogTitle className="text-lg font-bold">Ride Summary</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-sm rounded-2xl p-0 overflow-hidden gap-0">
+          <DialogHeader className="bg-slate-50 border-b px-5 py-4">
+            <DialogTitle className="text-base font-bold text-slate-900">Ride Summary</DialogTitle>
+          </DialogHeader>
+
           {selectedBooking && (
-            <div className="space-y-6">
-              <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                <p className="font-bold text-blue-900 flex items-center gap-2"><MapPin className="h-4 w-4" /> {selectedBooking.ride?.sourceName} to {selectedBooking.ride?.destinationName}</p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-3 border rounded-lg text-center">
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold">Seats Booked</p>
-                  <p className="text-lg font-bold text-primary">{selectedBooking.seatsBooked}</p>
+            <div className="p-5 space-y-5">
+              {/* 🔥 FIX: Modal Route - Vertical layout for long addresses */}
+              <div className="flex flex-col gap-3 rounded-xl bg-blue-50 border border-blue-100 px-4 py-3">
+                <div className="flex items-start gap-2.5">
+                  <MapPin className="h-4 w-4 shrink-0 text-blue-500 mt-0.5" />
+                  <span className="font-bold text-blue-900 text-sm leading-snug">
+                    {selectedBooking.ride?.sourceName}
+                  </span>
                 </div>
-                <div className="p-3 border rounded-lg text-center bg-slate-900 text-white">
-                  <p className="text-[10px] text-slate-400 uppercase font-bold">Ride OTP</p>
-                  {/* REAL APP MEIN YE BACKEND SE AAYEGA */}
-                  <p className="text-lg font-black tracking-widest text-emerald-400">1234</p>
+                <div className="flex items-start gap-2.5 pl-0.5">
+                  <Navigation className="h-3.5 w-3.5 shrink-0 text-blue-400 mt-0.5" />
+                  <span className="font-bold text-blue-900 text-sm leading-snug">
+                    {selectedBooking.ride?.destinationName}
+                  </span>
                 </div>
               </div>
-              <p className="text-[10px] text-center text-muted-foreground italic flex items-center justify-center gap-1">
-                <ShieldCheck className="h-3 w-3" /> Please share OTP only after boarding the ride.
+
+              {/* stats */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Seats</p>
+                  <p className="text-2xl font-extrabold text-slate-800">{selectedBooking.seatsBooked}</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Amount</p>
+                  <p className="text-2xl font-extrabold text-slate-800">
+                    ₹{(selectedBooking.ride?.pricePerSeat ?? 0) * (selectedBooking.seatsBooked ?? 1)}
+                  </p>
+                </div>
+              </div>
+
+              {/* OTP */}
+              <div className="rounded-xl bg-slate-900 p-4 text-center space-y-1">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Your Boarding OTP</p>
+                <p className="text-3xl font-black tracking-[0.3em] text-emerald-400">
+                  {selectedBooking.otp ?? "••••"}
+                </p>
+              </div>
+
+              <p className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400 font-medium">
+                <ShieldCheck className="h-3.5 w-3.5 text-slate-400" />
+                Share OTP only after you board the vehicle.
               </p>
             </div>
           )}
         </DialogContent>
       </Dialog>
 
-      {/* --- MODAL 2: DRIVER PASSENGER LIST & OTP VERIFICATION --- */}
+      {/* ════════════════════════════════════════════════════════════
+          MODAL 2 — Driver: Passenger list + OTP verify
+          ════════════════════════════════════════════════════════════ */}
       <Dialog open={!!selectedRide} onOpenChange={() => setSelectedRide(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold flex items-center justify-between">
-              Passenger List
-              <Badge variant="outline">{ridePassengers.length} Bookings</Badge>
-            </DialogTitle>
-          </DialogHeader>
-          {selectedRide && (
-            <div className="space-y-4">
-              <div className="bg-slate-50 p-3 rounded-lg border text-sm italic text-muted-foreground">
-                {selectedRide.sourceName} → {selectedRide.destinationName}
-              </div>
-              <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2">
-                {isFetchingPassengers ? (
-                  <div className="flex justify-center py-6"><Loader2 className="animate-spin text-primary" /></div>
-                ) : ridePassengers.length === 0 ? (
-                  <p className="text-center py-4 text-sm text-muted-foreground">No bookings yet.</p>
-                ) : (
-                  ridePassengers.map((booking: any) => (
-                    <div key={booking.id} className={`flex flex-col p-3 border rounded-lg shadow-sm transition-colors ${booking.status === 'BOARDED' ? 'bg-green-50/50 border-green-200' : 'bg-white'}`}>
-
-                      {/* Top Row: User Details */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold border">
-                            {booking.passenger?.fullName?.[0] || "P"}
-                          </div>
-                          <div>
-                            <p className="font-semibold text-sm">{booking.passenger?.fullName}</p>
-                            <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                              <Phone className="h-3 w-3" /> {maskPhone(booking.passenger?.phone)}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <a href={`tel:${booking.passenger?.phone}`} className="p-2 bg-blue-50 rounded-full text-blue-600 hover:bg-blue-100">
-                            <Phone className="h-3 w-3" />
-                          </a>
-                          <Badge variant="secondary" className="font-bold text-[10px]">{booking.seatsBooked} Seat</Badge>
-                        </div>
-                      </div>
-
-                      {/* Bottom Row: OTP Verification Section 🔥 */}
-                      <div className="mt-3 pt-3 border-t flex items-center justify-between">
-                        {booking.status === 'BOARDED' ? (
-                          <div className="flex items-center gap-2 text-green-600 font-bold text-xs bg-green-100 px-3 py-1.5 rounded-full w-full justify-center">
-                            <CheckCircle2 className="h-4 w-4" /> Boarding Verified
-                          </div>
-                        ) : (
-                          <>
-                            <div className="text-xs font-bold text-slate-500 uppercase tracking-tight">Boarding OTP</div>
-                            <div className="flex items-center gap-2">
-                              <Input
-                                placeholder="4-digit OTP"
-                                maxLength={4}
-                                value={otpInputs[booking.id] || ''}
-                                onChange={(e) => setOtpInputs(prev => ({ ...prev, [booking.id]: e.target.value.replace(/\D/g, '') }))}
-                                className="h-8 w-24 text-center text-sm font-bold tracking-widest border-slate-300"
-                              />
-                              <Button
-                                size="sm"
-                                className="h-8 px-4 font-bold text-xs"
-                                disabled={verifyingId === booking.id || (otpInputs[booking.id]?.length !== 4)}
-                                onClick={() => handleVerifyOtp(booking.id)}
-                              >
-                                {verifyingId === booking.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Verify"}
-                              </Button>
-                            </div>
-                          </>
-                        )}
-                      </div>
-
-                    </div>
-                  ))
-                )}
-              </div>
+        <DialogContent className="max-w-md rounded-2xl p-0 overflow-hidden gap-0">
+          <DialogHeader className="bg-slate-50 border-b px-5 py-4">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-base font-bold text-slate-900">Passenger List</DialogTitle>
+              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[11px] font-bold text-slate-600">
+                {ridePassengers.length} booking{ridePassengers.length !== 1 ? "s" : ""}
+              </span>
             </div>
-          )}
+
+            {/* 🔥 FIX: Header Route - Proper wrapping for long addresses */}
+            {selectedRide && (
+              <div className="mt-3 space-y-1.5 bg-white p-3 rounded-lg border shadow-sm">
+                <div className="flex items-start gap-2 text-xs text-slate-600 font-medium">
+                  <MapPin className="h-3.5 w-3.5 shrink-0 text-emerald-500 mt-0.5" />
+                  <span className="leading-relaxed">{selectedRide.sourceName}</span>
+                </div>
+                <div className="flex items-start gap-2 text-xs text-slate-600 font-medium">
+                  <Navigation className="h-3.5 w-3.5 shrink-0 text-red-500 mt-0.5" />
+                  <span className="leading-relaxed">{selectedRide.destinationName}</span>
+                </div>
+              </div>
+            )}
+          </DialogHeader>
+
+          <div className="p-4 space-y-3 max-h-[420px] overflow-y-auto">
+            {isFetchingPass ? (
+              <div className="flex justify-center py-10">
+                <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+              </div>
+            ) : ridePassengers.length === 0 ? (
+              <Empty label="No bookings for this ride yet." />
+            ) : (
+              ridePassengers.map((booking: any) => {
+                const boarded = booking.status === "BOARDED";
+                return (
+                  <div
+                    key={booking.id}
+                    className={`rounded-xl border p-4 transition-colors ${
+                      boarded
+                        ? "border-emerald-200 bg-emerald-50/60"
+                        : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    {/* passenger row */}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 border border-slate-200 text-xs font-black text-slate-600">
+                          {booking.passenger?.fullName?.[0]?.toUpperCase() || "P"}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-800">
+                            {booking.passenger?.fullName || "Passenger"}
+                          </p>
+                          <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                            <Phone className="h-3 w-3" />
+                            {maskPhone(booking.passenger?.phone)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <a
+                          href={`tel:${booking.passenger?.phone}`}
+                          className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Phone className="h-3 w-3" />
+                        </a>
+                        <span className="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                          {booking.seatsBooked} seat{booking.seatsBooked !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* OTP section */}
+                    <div className="mt-3 pt-3 border-t border-slate-100">
+                      {boarded ? (
+                        <div className="flex items-center justify-center gap-2 rounded-lg bg-emerald-100 py-2 text-xs font-bold text-emerald-700">
+                          <CheckCircle2 className="h-4 w-4" />
+                          Boarding Verified
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 shrink-0">
+                            Verify OTP
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              placeholder="0000"
+                              maxLength={4}
+                              inputMode="numeric"
+                              value={otpInputs[booking.id] || ""}
+                              onChange={(e) =>
+                                setOtpInputs((prev) => ({
+                                  ...prev,
+                                  [booking.id]: e.target.value.replace(/\D/g, ""),
+                                }))
+                              }
+                              className="h-9 w-20 text-center text-base font-black tracking-[0.25em] border-slate-300 bg-slate-50"
+                            />
+                            <Button
+                              size="sm"
+                              className="h-9 px-4 rounded-lg font-bold text-xs bg-slate-900 hover:bg-slate-700 text-white"
+                              disabled={
+                                verifyingId === booking.id ||
+                                (otpInputs[booking.id]?.length ?? 0) < 4
+                              }
+                              onClick={() => handleVerifyOtp(booking.id)}
+                            >
+                              {verifyingId === booking.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                "Verify"
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

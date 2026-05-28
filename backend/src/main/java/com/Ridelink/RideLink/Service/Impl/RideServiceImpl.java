@@ -28,6 +28,16 @@ public class RideServiceImpl implements RideService {
         User driver = userRepository.findById(driverId)
                 .orElseThrow(() -> new ResourceNotFoundException("Driver not found with id: " + driverId));
 
+        LocalDateTime departureTime = ride.getDepartureTime();
+        LocalDateTime now = LocalDateTime.now();
+
+        // Agar departure time agle 2 ghante ke andar ka hai, toh INSTANT manenge
+        if (departureTime.isBefore(now.plusHours(1))) {
+            ride.setRideType("INSTANT");
+        } else {
+            ride.setRideType("SCHEDULED");
+        }
+
         ride.setDriver(driver);
         ride.setStatus(RideStatus.OPEN);
         ride.setAvailableSeats(ride.getTotalSeats());
@@ -68,32 +78,70 @@ public class RideServiceImpl implements RideService {
 
     @Override
     public List<Ride> searchInstantCarpools(Double pLat, Double pLng, Double dLat, Double dLng, Integer seats) {
-        // 3000 meters (3 KM) ka radius liya hai
-        Integer searchRadius = 3000;
 
-        // 1. Pehle DB se radius aur seats ke hisaab se saari rides nikal lo
-        List<Ride> nearbyRides = rideRepository.findInstantCarpools(pLat, pLng, dLat, dLng, searchRadius, seats);
+        // 1. Initial filter: Database se badi range me rides nikalo (50 KM)
+        List<Ride> allActiveRides = rideRepository.findInstantCarpools(pLat, pLng, dLat, dLng, 50000, seats);
 
-        // 2. Ab hum filter karenge ki gaadi sahi disha (forward direction) me ja rahi ho
-        List<Ride> validDirectionRides = new ArrayList<>();
+        List<Ride> validRides = new ArrayList<>();
 
-        for (Ride ride : nearbyRides) {
-            // Driver ke Start point se Passenger ke Pickup aur Drop ka distance nikalo
-            double distToPickup = calculateDistance(ride.getSourceLatitude(), ride.getSourceLongitude(), pLat, pLng);
-            double distToDrop = calculateDistance(ride.getSourceLatitude(), ride.getSourceLongitude(), dLat, dLng);
+        for (Ride ride : allActiveRides) {
 
-            //  MAIN LOGIC: Agar Passenger ka Drop point jyada door hai (Driver ke source se)
-            // tabhi gaadi sahi aage ki disha me ja rahi hai!
-            if (distToPickup < distToDrop) {
-                validDirectionRides.add(ride);
+            // 🔥 FIX: Passed-Point Match Bug 🔥
+            // Agar driver raste me hai aur WebSocket ne uski live location save ki hai,
+            // toh search uski "Current Location" se hogi. Agar ride start nahi hui hai,
+            // toh default "Source Location" hi rahegi.
+            double driverLat1 = (ride.getCurrentLatitude() != null && ride.getCurrentLatitude() != 0.0)
+                    ? ride.getCurrentLatitude()
+                    : ride.getSourceLatitude();
+            double driverLng1 = (ride.getCurrentLongitude() != null && ride.getCurrentLongitude() != 0.0)
+                    ? ride.getCurrentLongitude()
+                    : ride.getSourceLongitude();
+
+            double driverLat2 = ride.getDestinationLatitude();
+            double driverLng2 = ride.getDestinationLongitude();
+
+            // 1. Bounding Box Check (Kya Passenger current aur end point ke rectangle ke beech me hai?)
+            boolean isPassengerInBetween = isPointInBoundingBox(
+                    driverLat1, driverLng1, driverLat2, driverLng2, pLat, pLng, 0.05); // 0.05 degrees ~ 5KM buffer
+
+            if (!isPassengerInBetween) continue;
+
+            // 2. Haversine check for direction and proximity from CURRENT location
+            double distDriverCurrentToPassPickup = calculateDistance(driverLat1, driverLng1, pLat, pLng);
+            double distDriverCurrentToPassDrop = calculateDistance(driverLat1, driverLng1, dLat, dLng);
+            double distDriverEndToPassDrop = calculateDistance(driverLat2, driverLng2, dLat, dLng);
+
+            // Driver ka bacha hua total safar (Current to Destination)
+            double remainingDriverDistance = calculateDistance(driverLat1, driverLng1, driverLat2, driverLng2);
+
+            // LOGIC RULES:
+            // A. Passenger ka pickup driver ke BACHE HUE raste ke andar aana chahiye
+            // B. Passenger aage ki disha me jana chahiye (Pickup is closer to driver's current position than Drop)
+            // C. Passenger ka drop driver ke drop ke aage nahi nikalna chahiye
+
+            if (distDriverCurrentToPassPickup < remainingDriverDistance &&
+                    distDriverCurrentToPassPickup < distDriverCurrentToPassDrop &&
+                    distDriverEndToPassDrop < remainingDriverDistance) {
+
+                validRides.add(ride);
             }
         }
 
-        return validDirectionRides;
+        return validRides;
+    }
+
+    // HELPER: Bounding Box (Kahin Passenger ulte raste par toh nahi?)
+    private boolean isPointInBoundingBox(double lat1, double lng1, double lat2, double lng2, double px, double py, double buffer) {
+        double minLat = Math.min(lat1, lat2) - buffer;
+        double maxLat = Math.max(lat1, lat2) + buffer;
+        double minLng = Math.min(lng1, lng2) - buffer;
+        double maxLng = Math.max(lng1, lng2) + buffer;
+
+        return (px >= minLat && px <= maxLat && py >= minLng && py <= maxLng);
     }
 
     // HELPER METHOD: Haversine formula do points ke beech ka distance (km me) nikalne ke liye
-     double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+     public double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
         final int R = 6371; // Earth ki radius kilometers mein
         double latDistance = Math.toRadians(lat2 - lat1);
         double lonDistance = Math.toRadians(lon2 - lon1);
@@ -104,5 +152,14 @@ public class RideServiceImpl implements RideService {
 
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return R * c;
+    }
+
+
+    public void completeRide(Long rideId){
+        Ride ride = rideRepository.findById(rideId).orElseThrow(()->new ResourceNotFoundException("Ride not found with id: " + rideId));
+
+        ride.setStatus(RideStatus.COMPLETED);
+
+        rideRepository.save(ride);
     }
 }

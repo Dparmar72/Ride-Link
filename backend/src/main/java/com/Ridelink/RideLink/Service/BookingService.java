@@ -23,4 +23,8 @@ public interface BookingService {
     Booking cancelBookingByPassenger(Long bookingId);
 
     void autoForwardToNextDriver(Booking failedBooking);
+
+    Booking endPassengerRide(Long bookingId);
+
+    Booking cancelBookingByDriver(Long bookingId);
 }

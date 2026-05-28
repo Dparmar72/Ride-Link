@@ -14,6 +14,9 @@ import {
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
+// 🔥 NAYA IMPORT: Supabase Client 🔥
+import { createClient } from "@supabase/supabase-js";
+
 // --- SCHEMAS ---
 const loginSchema = z.object({
   email: z.string().email("Enter a valid Gmail address"),
@@ -66,7 +69,6 @@ function useOtp() {
 
       const requestType = isLoginMode ? "login" : "register";
 
-      // 🔥 SECURE FIX: Sending Email and Type in JSON Body 🔥
       const response = await fetch("http://localhost:9090/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -105,7 +107,6 @@ function useOtp() {
   return { send, seconds, isSending, statusMsg, reset };
 }
 
-// 🔥 SECURE FIX: OTP Verification using JSON Body instead of Request Params 🔥
 const verifyOtpBackend = async (email: string, otp: string) => {
   const response = await fetch("http://localhost:9090/api/auth/verify-otp", {
     method: "POST",
@@ -116,22 +117,33 @@ const verifyOtpBackend = async (email: string, otp: string) => {
   return true;
 };
 
-// ================= CLOUDINARY HELPER =================
-const uploadToCloudinary = async (file: File) => {
-  const formData = new FormData();
-  formData.append("file", file);
+// ================= SUPABASE HELPER =================
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "YOUR_SUPABASE_URL";
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "YOUR_SUPABASE_ANON_KEY";
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-  formData.append("upload_preset", "RideLink_docs");
-  const cloudName = "dnfu7zadq";
+const uploadToSupabase = async (file: File) => {
+  const fileExt = file.name.split('.').pop();
+  const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+  const filePath = `kyc-docs/${fileName}`;
+  const bucketName = "ridelink-docs";
 
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-    method: "POST",
-    body: formData,
-  });
+  const { data, error } = await supabase.storage
+    .from(bucketName)
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: false
+    });
 
-  if (!res.ok) throw new Error("Image upload failed");
-  const data = await res.json();
-  return data.secure_url;
+  if (error) {
+    throw new Error(`Supabase upload failed: ${error.message}`);
+  }
+
+  const { data: publicUrlData } = supabase.storage
+    .from(bucketName)
+    .getPublicUrl(filePath);
+
+  return publicUrlData.publicUrl;
 };
 
 export default function Login() {
@@ -181,8 +193,6 @@ export default function Login() {
   const onLoginSubmit = async (data: LoginValues) => {
     try {
       setIsSubmitting(true);
-
-      // Ye function ab secure JSON body use karega
       await verifyOtpBackend(data.email, data.otp);
 
       const response = await fetch("http://localhost:9090/api/auth/login", {
@@ -205,6 +215,7 @@ export default function Login() {
 
       localStorage.setItem("ridelink:auth", JSON.stringify({
         token: authData.token || authData.jwt,
+        refreshToken: authData.refreshToken || authData.refresh_token, // 🔥 FIX ADDED
         id: authData.id,
         role: assignedRole,
         email: authData.email,
@@ -215,7 +226,7 @@ export default function Login() {
       toast.success("Successfully logged in!");
 
       setTimeout(() => {
-        window.location.replace(redirectTo);
+        window.location.replace(redirectTo); // 🔥 UNCOMMENTED
       }, 500);
 
     } catch (error: any) {
@@ -243,6 +254,7 @@ export default function Login() {
 
       localStorage.setItem("ridelink:auth", JSON.stringify({
         token: authData.jwt || authData.token,
+        refreshToken: authData.refreshToken || authData.refresh_token, // 🔥 FIX ADDED
         id: authData.id,
         role: "user",
         name: details.name,
@@ -268,13 +280,11 @@ export default function Login() {
 
     try {
       setIsSubmitting(true);
-      toast.info("Uploading documents, please wait...");
+      toast.info("Uploading documents to Supabase, please wait...");
 
-      // 1. Upload images to Cloudinary
-      const licenseUrl = await uploadToCloudinary(docs.license);
-      const rcUrl = await uploadToCloudinary(docs.rc);
+      const licenseUrl = await uploadToSupabase(docs.license);
+      const rcUrl = await uploadToSupabase(docs.rc);
 
-      // 2. Register Driver with backend
       await fetch("http://localhost:9090/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -289,7 +299,6 @@ export default function Login() {
         })
       });
 
-      // 3. Auto Login
       const loginRes = await fetch("http://localhost:9090/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -300,6 +309,7 @@ export default function Login() {
 
       localStorage.setItem("ridelink:auth", JSON.stringify({
         token: authData.jwt || authData.token,
+        refreshToken: authData.refreshToken || authData.refresh_token,
         id: authData.id,
         role: "rider",
         name: registrationData.name,
@@ -310,9 +320,9 @@ export default function Login() {
       toast.success("Registration successful! Pending Admin Verification.");
       window.location.replace("/");
 
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast.error("Rider registration failed. Check file size or network.");
+      toast.error(error.message || "Rider registration failed. Check file size or network.");
     } finally {
       setIsSubmitting(false);
     }
@@ -321,10 +331,7 @@ export default function Login() {
   const onRegisterSubmit = async (data: RegistrationValues) => {
     try {
       setIsSubmitting(true);
-
-      // Ye function ab secure JSON body use karega
       await verifyOtpBackend(data.email, data.otp);
-
       setRegistrationData(data);
       toast.success("OTP Verified! Choose your role.");
       go("role");

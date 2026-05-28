@@ -1,5 +1,6 @@
 package com.Ridelink.RideLink.Entity;
 
+import com.Ridelink.RideLink.Security.UpiEncryptionConverter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
@@ -52,7 +53,12 @@ public class User {
     @Column(name = "rc_url")
     private String rcUrl;
 
+    @Column(name="upi_id")
+    @Convert(converter = UpiEncryptionConverter.class)
+    private String upiId;
 
+    @Column(name = "razorpay_account_id")
+    private String razorpayAccountId;
 
     @Column(name = "vehicle_number")
     private String vehicleNumber;

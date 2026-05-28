@@ -87,7 +87,7 @@ public class BookingServiceImpl implements BookingService {
         Booking booking = bookingRepository.findByRideIdAndRideOtp(rideId, otp)
                 .orElseThrow(() -> new BadRequestException("Invalid OTP or Booking not found"));
 
-        booking.setStatus(BookingStatus.COMPLETED);
+        booking.setStatus(BookingStatus.STARTED);
         return bookingRepository.save(booking);
     }
 
@@ -215,6 +215,58 @@ public class BookingServiceImpl implements BookingService {
         } else {
             System.out.println("❌ No alternative drivers found on this route.");
         }
+    }
+
+    @Override
+    public Booking endPassengerRide(Long bookingId) {
+        // 1. Booking find karo
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new RuntimeException("Booking not found with id: " + bookingId));
+
+        // 2. Sirf usi ride ko end karo jo already STARTED ya BOARDED hai
+        if (booking.getStatus() != BookingStatus.STARTED && booking.getStatus() != BookingStatus.BOARDED) {
+            throw new RuntimeException("Ride cannot be ended because it is not in STARTED state.");
+        }
+
+        // 3. Status ko COMPLETED set karke DB me save kar do
+        booking.setStatus(BookingStatus.COMPLETED);
+
+        //  passenger ko seat free karna chahte hain aage ke routes ke liye:
+        Ride ride = booking.getRide();
+         ride.setAvailableSeats(ride.getAvailableSeats() + booking.getSeatsBooked());
+         rideRepository.save(ride);
+
+        return bookingRepository.save(booking);
+    }
+
+    @Override
+    public Booking cancelBookingByDriver(Long bookingId) {
+        // 1. Database se booking nikalo
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new RuntimeException("Booking not found with ID: " + bookingId));
+
+        // Agar already cancelled hai, toh wahi wapas return kar do
+        if ("CANCELLED".equalsIgnoreCase(String.valueOf(booking.getStatus())) || "REJECTED".equalsIgnoreCase(String.valueOf(booking.getStatus()))) {
+            return booking;
+        }
+
+        // 2. Booking ka status "CANCELLED" mark karo (Kyunki driver ne cancel ki hai)
+        booking.setStatus(BookingStatus.CANCELLED);
+
+        // 3.IMPORTANT: Passenger ki seats wapas gadi (Ride) mein add karo
+        Ride ride = booking.getRide();
+        if (ride != null) {
+            int bookedSeats = booking.getSeatsBooked();
+
+            // Available seats mein wapas add kar do
+            ride.setAvailableSeats(ride.getAvailableSeats() + bookedSeats);
+
+            // Ride ko database mein save karo taaki naye passengers ko ye seat dikhne lage
+            rideRepository.save(ride);
+        }
+
+        // 4. Booking ko save karke return kar do
+        return bookingRepository.save(booking);
     }
 
 }

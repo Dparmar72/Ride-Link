@@ -78,7 +78,7 @@ function Header() {
 
         <nav className="hidden items-center gap-2 md:flex">
           <NavLink to="/" className={({ isActive }) => cn(linkBase, isActive && "text-primary font-bold")}>Home</NavLink>
-
+          <NavLink to="/search" className={({isActive}) => cn(linkBase, isActive && "text-primary font-bold" )}>Search</NavLink>
           <NavLink to="/book" className={({ isActive }) => cn(linkBase, isActive && "text-primary font-bold")}>
             Book a ride
           </NavLink>

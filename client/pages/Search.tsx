@@ -15,6 +15,7 @@ interface Ride {
   departureTime: string;
   pricePerSeat: number;
   availableSeats: number;
+  rideType?: string; // 🔥 Backend se ride type aayega
   driver: {
     fullName: string;
   };
@@ -53,11 +54,16 @@ export default function Search() {
         `http://localhost:9090/api/rides/search?source=${encodeURIComponent(source)}&destination=${encodeURIComponent(destination)}&date=${formattedDate}`
       );
       if (!response.ok) throw new Error("Failed to fetch rides");
+
       const data = await response.json();
-      setRides(data);
+
+      // 🔥 FRONTEND FILTER: Sirf SCHEDULED rides hi show karni hain
+      const scheduledRidesOnly = data.filter((r: Ride) => r.rideType === "SCHEDULED");
+
+      setRides(scheduledRidesOnly);
 
       const initialSeats: Record<number, number> = {};
-      data.forEach((r: Ride) => { initialSeats[r.id] = 1; });
+      scheduledRidesOnly.forEach((r: Ride) => { initialSeats[r.id] = 1; });
       setSelectedSeats(initialSeats);
     } catch (error: any) {
       toast.error("Could not load rides.");
@@ -82,8 +88,14 @@ export default function Search() {
   const handleBooking = async (rideId: number) => {
     const authData = JSON.parse(localStorage.getItem("ridelink:auth") || "{}");
     const token = authData.token;
-    const passengerId = authData.id;
+    const passengerId = authData.id || authData.userId;
     const seatsToBook = selectedSeats[rideId] || 1;
+
+    // 🔥 FIX 1: Jis ride ko book kar rahe hain, uska data nikaalo
+    const rideToBook = rides.find((r) => r.id === rideId);
+
+    // 🔥 FIX 2: Total price calculate karo (Price per seat * Number of seats)
+    const calculatedPrice = (rideToBook?.pricePerSeat || 0) * seatsToBook;
 
     if (!token) {
       toast.error("Please login to book a ride");
@@ -93,13 +105,21 @@ export default function Search() {
 
     try {
       setIsBooking(rideId);
-      const response = await fetch(
-        `http://localhost:9090/api/bookings/book?rideId=${rideId}&passengerId=${passengerId}&seatsBooked=${seatsToBook}`,
-        {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${token}` }
-        }
-      );
+
+      // 🔥 FIX: POST request with proper JSON body to avoid 500 error aur fare bhejne ke liye
+      const response = await fetch("http://localhost:9090/api/bookings/book", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          rideId: rideId,
+          passengerId: passengerId,
+          seatsBooked: seatsToBook,
+          price: calculatedPrice // 🔥 FIX 3: Backend ko sahi calculate kiya hua fare bhejo
+        })
+      });
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -107,7 +127,7 @@ export default function Search() {
       }
 
       toast.success(`${seatsToBook} Seat(s) booked successfully!`);
-      fetchRides();
+      fetchRides(); // Refresh list after booking
     } catch (error: any) {
       toast.error(error.message || "Something went wrong");
     } finally {
@@ -148,7 +168,6 @@ export default function Search() {
             </div>
             <div className="relative">
               <CalendarIcon className="absolute left-3 top-3 h-4 w-4 text-primary" />
-              {/* min={today} lagane se user calendar mein purani date select nahi kar payega */}
               <Input
                 name="date"
                 type="date"
@@ -166,11 +185,11 @@ export default function Search() {
       </Card>
 
       <div className="grid gap-6">
-        <h2 className="text-2xl font-bold">Available Rides</h2>
+        <h2 className="text-2xl font-bold">Scheduled Rides</h2>
 
         {rides.length === 0 && !isLoading ? (
           <div className="text-center py-20 bg-muted/30 rounded-xl border-2 border-dashed">
-            <p className="text-muted-foreground text-lg italic">No future rides found for this route.</p>
+            <p className="text-muted-foreground text-lg italic">No scheduled rides found for this route and date.</p>
           </div>
         ) : (
           rides.map((ride) => (

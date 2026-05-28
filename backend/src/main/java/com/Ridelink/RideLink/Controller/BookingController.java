@@ -4,6 +4,7 @@ import com.Ridelink.RideLink.DTO.BookingRequest;
 import com.Ridelink.RideLink.DTO.VerifyOtpRequestDTO;
 import com.Ridelink.RideLink.Entity.Booking;
 import com.Ridelink.RideLink.Service.BookingService;
+import com.Ridelink.RideLink.Service.PaymentService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -17,6 +18,9 @@ public class BookingController {
 
     @Autowired
     private BookingService bookingService;
+
+    @Autowired
+    private PaymentService paymentService;
 
     // 1. Ride Book Karna
     @PostMapping("/book")
@@ -74,9 +78,56 @@ public class BookingController {
     }
 
     @PutMapping("/{bookingId}/cancel")
-    public ResponseEntity<Booking> cancelRideByPassenger(@PathVariable Long bookingId) {
-        Booking cancelBooking = bookingService.cancelBookingByPassenger(bookingId);
+    public ResponseEntity<?> cancelRideByPassenger(@PathVariable Long bookingId) {
+        try {
+            // 1. Booking service se ride cancel karwao (Seats wapas free hongi, status CANCELLED hoga)
+            Booking cancelBooking = bookingService.cancelBookingByPassenger(bookingId);
 
-        return ResponseEntity.ok(cancelBooking);
+            // 2. Payment service se refund ki math process karwao
+            cancelBooking = paymentService.processCancellationRefund(cancelBooking);
+
+            return ResponseEntity.ok(cancelBooking);
+        } catch (Exception e) {
+            e.printStackTrace(); // Console mein error dekhne ke liye
+            return ResponseEntity.badRequest().body("Error cancelling ride: " + e.getMessage());
+        }
+    }
+
+    @PutMapping("/{bookingId}/driver-cancel")
+    public ResponseEntity<?> cancelRideByDriver(@PathVariable("bookingId") Long bookingId) {
+        try {
+            // 1. Booking service se booking ko cancel mark karwao (Seats free hongi, status REJECTED/CANCELLED hoga)
+            Booking cancelBooking = bookingService.cancelBookingByDriver(bookingId);
+
+            // 2. Payment service se 100% full refund process karwao
+            cancelBooking = paymentService.processDriverCancellationRefund(cancelBooking);
+
+            return ResponseEntity.ok(cancelBooking);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+        }
+    }
+
+    @PutMapping("/{bookingId}/end-ride")
+    public ResponseEntity<Booking> endRideOfPassenger(@PathVariable Long bookingId) {
+       try {
+           Booking endBooking = bookingService.endPassengerRide(bookingId);
+           // INSTANT RIDE CHECK: Escrow sirf tabhi chalega jab advance pay hua ho
+           if ("ADVANCE_PAID".equalsIgnoreCase(endBooking.getPaymentStatus())) {
+               // Scheduled ride thi -> Escrow se baaki paise driver ko bhejo
+               paymentService.releaseFundsToDriver(bookingId);
+           } else {
+               // Instant ride thi -> Escrow skip karo aur direct FULL_PAID mark karo
+               // (Kyunki driver ne QR scan karke 100% payment le liya hai)
+               endBooking.setPaymentStatus("FULL_PAID");
+
+               // Agar aapki bookingService status save nahi karti, toh aapko yahan save call karna padega
+               // bookingRepository.save(endBooking);
+           }
+        return ResponseEntity.ok(endBooking);
+       } catch (Exception e) {
+           return ResponseEntity.badRequest().build();
+       }
     }
 }

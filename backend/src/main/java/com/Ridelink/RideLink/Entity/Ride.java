@@ -30,6 +30,8 @@ public class Ride {
     private String destinationName;
     private Double destinationLatitude;
     private Double destinationLongitude;
+    private Double currentLatitude;
+    private Double currentLongitude;
 
     @Column(nullable = false)
     private LocalDateTime departureTime;
@@ -42,6 +44,9 @@ public class Ride {
 
     @Column(nullable = false)
     private Integer availableSeats;
+
+    @Column
+    private String rideType; //INSTANT , SCHEDULED
 
     @Enumerated(EnumType.STRING)
     private RideStatus status;

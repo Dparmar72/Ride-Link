@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@stomp/stompjs": "^7.3.0",
+    "@supabase/supabase-js": "^2.106.1",
     "@types/leaflet": "^1.9.21",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
