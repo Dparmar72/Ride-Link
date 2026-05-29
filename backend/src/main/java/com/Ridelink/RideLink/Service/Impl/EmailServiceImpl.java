@@ -14,7 +14,7 @@ public class EmailServiceImpl implements EmailService {
     private JavaMailSender mailSender;
 
 
-    @Value("${MALE_USERNAME}")
+    @Value("${MAIL_USERNAME:ridelink@ecoride.com}")
     private String senderEmail;
 
     @Override
