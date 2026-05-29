@@ -53,9 +53,18 @@ public class SecurityConfig {
     @Bean
     public UrlBasedCorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of("http://localhost:8080"));
+
+        // 🔥 Vercel ka URL aur local testing dono allow kar diye hain
+        configuration.setAllowedOrigins(Arrays.asList(
+                "https://ride-link-theta.vercel.app",
+                "http://localhost:8080",
+                "http://localhost:5173"
+        ));
+
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
+
+        // 🔥 Strict browsers ke liye headers explicit kar diye
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept", "Origin"));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
