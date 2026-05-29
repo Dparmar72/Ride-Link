@@ -8,8 +8,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
-import { Menu, Leaf, TrendingUp, LogOut, ShieldCheck, Car, MapIcon } from "lucide-react"; // 🔥 Added MapIcon
+// 🔥 X (Close) icon add kiya hai menu band karne ke liye
+import { Menu, X, Leaf, TrendingUp, LogOut, ShieldCheck, Car, MapIcon } from "lucide-react";
 
+// ================= USE AUTH HOOK =================
 function useAuth() {
   const location = useLocation();
   const [auth, setAuth] = useState<any>(() => {
@@ -40,13 +42,19 @@ function useAuth() {
   return auth;
 }
 
+// ================= HEADER COMPONENT =================
 function Header() {
   const location = useLocation();
   const navigate = useNavigate();
   const auth = useAuth();
 
+  // 🔥 Mobile menu ke open/close ke liye state
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
+    // Jaise hi user kisi link par click kare aur page change ho, mobile menu band ho jaye
+    setIsMobileMenuOpen(false);
   }, [location.pathname]);
 
   const linkBase =
@@ -61,12 +69,12 @@ function Header() {
   // Roles identification
   const roleString = String(auth?.role || "").toUpperCase();
   const isDriver = auth && (roleString.includes("RIDER") || roleString.includes("DRIVER"));
-  // Passenger dashboard ko har logged in user dekh sake, ya isko restrict kar sakte hain
   const isPassenger = auth && !roleString.includes("ADMIN");
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-3 sm:px-4 lg:px-6">
+        {/* LOGO */}
         <Link to="/" className="flex items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-sm">
             <Leaf className="h-5 w-5" />
@@ -76,6 +84,7 @@ function Header() {
           </span>
         </Link>
 
+        {/* --- DESKTOP NAVIGATION --- */}
         <nav className="hidden items-center gap-2 md:flex">
           <NavLink to="/" className={({ isActive }) => cn(linkBase, isActive && "text-primary font-bold")}>Home</NavLink>
           <NavLink to="/search" className={({isActive}) => cn(linkBase, isActive && "text-primary font-bold" )}>Search</NavLink>
@@ -85,14 +94,12 @@ function Header() {
 
           <NavLink to="/post-ride" className={({ isActive }) => cn(linkBase, isActive && "text-primary font-bold")}>Post a ride</NavLink>
 
-          {/* 🔥 Passenger Dashboard Link 🔥 */}
           {isPassenger && (
             <NavLink to="/passenger-dashboard" className={({ isActive }) => cn(linkBase, isActive && "text-primary font-bold text-blue-600", !isActive && "text-blue-600/80")}>
               <MapIcon className="h-4 w-4 mr-0.5" /> My Rides
             </NavLink>
           )}
 
-          {/* Driver Dashboard Link */}
           {isDriver && (
             <NavLink to="/driver-dashboard" className={({ isActive }) => cn(linkBase, isActive && "text-primary font-bold text-emerald-600", !isActive && "text-emerald-600/80")}>
               <Car className="h-4 w-4 mr-0.5" /> Driver Hub
@@ -104,12 +111,13 @@ function Header() {
         </nav>
 
         <div className="flex items-center gap-2">
+          {/* DESKTOP BUTTONS (NOT LOGGED IN) */}
           {!auth && (
             <>
               <Button asChild variant="ghost" className="hidden md:inline-flex">
                 <Link to="/login">Log in</Link>
               </Button>
-              <Button asChild className="shadow-sm">
+              <Button asChild className="shadow-sm hidden md:inline-flex">
                 <Link to="/signup" className="inline-flex items-center gap-2">
                   <TrendingUp className="h-4 w-4" /> Start pooling
                 </Link>
@@ -117,22 +125,19 @@ function Header() {
             </>
           )}
 
+          {/* DESKTOP BUTTONS (LOGGED IN) */}
           {auth && (
             <div className="flex items-center gap-3">
-
-              {/* ADMIN PORTAL BUTTON */}
               {roleString.includes("ADMIN") && (
                 <Link
                   to="/admin/verify"
-                  className="flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-red-700 active:scale-95"
+                  className="hidden sm:flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-red-700 active:scale-95"
                 >
                   <ShieldCheck className="h-4 w-4" />
-                  <span className="hidden sm:inline">Admin Portal</span>
-                  <span className="sm:hidden">Admin</span>
+                  Admin Portal
                 </Link>
               )}
 
-              {/* PROFILE WIDGET */}
               <Link
                 to="/account"
                 className="group flex items-center gap-2 rounded-full border border-border/60 bg-background/50 px-2 py-1 transition-all hover:border-primary/50 hover:bg-accent shadow-sm active:scale-95"
@@ -150,21 +155,80 @@ function Header() {
                 </div>
               </Link>
 
-              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive transition-colors" onClick={logout} title="Logout">
+              <Button variant="ghost" size="icon" className="hidden md:flex text-muted-foreground hover:text-destructive transition-colors" onClick={logout} title="Logout">
                 <LogOut className="h-4 w-4" />
               </Button>
             </div>
           )}
 
-          <Button variant="ghost" size="icon" className="md:hidden">
-            <Menu className="h-5 w-5" />
+          {/* 🔥 MOBILE HAMBURGER MENU BUTTON 🔥 */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          >
+            {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
         </div>
       </div>
+
+      {/* 🔥 MOBILE DROPDOWN PANEL (Yeh tabhi dikhega jab state true hogi) 🔥 */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden border-t bg-background px-4 py-4 shadow-lg animate-in slide-in-from-top-2">
+          <nav className="flex flex-col gap-3">
+            <NavLink to="/" className={({ isActive }) => cn(linkBase, isActive && "text-primary font-bold", "w-full rounded-md hover:bg-accent")}>Home</NavLink>
+            <NavLink to="/search" className={({ isActive }) => cn(linkBase, isActive && "text-primary font-bold", "w-full rounded-md hover:bg-accent")}>Search</NavLink>
+            <NavLink to="/book" className={({ isActive }) => cn(linkBase, isActive && "text-primary font-bold", "w-full rounded-md hover:bg-accent")}>Book a ride</NavLink>
+            <NavLink to="/post-ride" className={({ isActive }) => cn(linkBase, isActive && "text-primary font-bold", "w-full rounded-md hover:bg-accent")}>Post a ride</NavLink>
+
+            {isPassenger && (
+              <NavLink to="/passenger-dashboard" className={({ isActive }) => cn(linkBase, isActive && "text-primary font-bold text-blue-600", !isActive && "text-blue-600/80", "w-full rounded-md hover:bg-accent")}>
+                <MapIcon className="h-4 w-4 mr-2" /> My Rides
+              </NavLink>
+            )}
+
+            {isDriver && (
+              <NavLink to="/driver-dashboard" className={({ isActive }) => cn(linkBase, isActive && "text-primary font-bold text-emerald-600", !isActive && "text-emerald-600/80", "w-full rounded-md hover:bg-accent")}>
+                <Car className="h-4 w-4 mr-2" /> Driver Hub
+              </NavLink>
+            )}
+
+            <NavLink to="/safety" className={({ isActive }) => cn(linkBase, isActive && "text-primary font-bold", "w-full rounded-md hover:bg-accent")}>Safety</NavLink>
+            <NavLink to="/about" className={({ isActive }) => cn(linkBase, isActive && "text-primary font-bold", "w-full rounded-md hover:bg-accent")}>About</NavLink>
+
+            {/* Mobile Action Buttons */}
+            {!auth ? (
+              <div className="flex flex-col gap-2 mt-4 pt-4 border-t">
+                <Button asChild variant="outline" className="w-full">
+                  <Link to="/login">Log in</Link>
+                </Button>
+                <Button asChild className="w-full">
+                  <Link to="/signup">Start pooling</Link>
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2 mt-4 pt-4 border-t">
+                {roleString.includes("ADMIN") && (
+                  <Button asChild variant="destructive" className="w-full mb-2">
+                    <Link to="/admin/verify">
+                      <ShieldCheck className="mr-2 h-4 w-4" /> Admin Portal
+                    </Link>
+                  </Button>
+                )}
+                <Button variant="ghost" className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50" onClick={logout}>
+                  <LogOut className="mr-2 h-4 w-4" /> Logout
+                </Button>
+              </div>
+            )}
+          </nav>
+        </div>
+      )}
     </header>
   );
 }
 
+// ================= FOOTER COMPONENT =================
 function Footer() {
   return (
     <footer className="border-t bg-background">
@@ -185,6 +249,7 @@ function Footer() {
   );
 }
 
+// ================= MAIN LAYOUT COMPONENT =================
 export default function MainLayout() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -200,7 +265,6 @@ export default function MainLayout() {
     if (auth) return;
     if (location.pathname === "/login") return;
 
-    // 🔥 Added /passenger-dashboard to protected routes 🔥
     const protectedPrefixes = [
       "/search",
       "/post-ride",
