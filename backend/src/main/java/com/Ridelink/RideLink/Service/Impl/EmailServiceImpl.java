@@ -14,14 +14,13 @@ public class EmailServiceImpl implements EmailService {
     private JavaMailSender mailSender;
 
 
-    @Value("${MAIL_USERNAME:ridelink@ecoride.com}")
-    private String senderEmail;
+
 
     @Override
     public void sendSimpleEmail(String to, String subject, String body) {
         try {
             SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(senderEmail); // Wahi email jo properties me hai (abhi ke liye dummy emai;)
+            message.setFrom("ridelink.plateform@gmail.com"); // Wahi email jo properties me hai (abhi ke liye dummy emai;)
             message.setTo(to);
             message.setSubject(subject);
             message.setText(body);
