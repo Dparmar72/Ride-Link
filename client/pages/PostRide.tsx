@@ -46,7 +46,6 @@ function MapClickHandler({ onMapClick }: { onMapClick: (lat: number, lng: number
 }
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
-// 🔥 Added rideMode & conditionally validated time
 const schema = z.object({
   from:     z.string().min(2, "Enter pickup location"),
   to:       z.string().min(2, "Enter drop location"),
@@ -118,7 +117,6 @@ export default function PostRide() {
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    // 🔥 Default rideMode to instant
     defaultValues: { from: "", to: "", time: "", seats: "4", vehicle: "car", rideMode: "instant" },
   });
 
@@ -136,10 +134,8 @@ export default function PostRide() {
     } catch { /* ignore */ }
   }, []);
 
-  // 🔥 Smart Fare Calculator
   const calculateFare = useCallback((distKm: number, vehicle: string) => {
     let fare = 0;
-
     if (vehicle === "car") {
       if (distKm <= 15) fare = distKm * 5;
       else if (distKm <= 50) fare = (15 * 5) + ((distKm - 15) * 2);
@@ -155,12 +151,10 @@ export default function PostRide() {
       else if (distKm <= 50) fare = (15 * 4) + ((distKm - 15) * 1.5);
       else fare = (15 * 4) + (35 * 1.5) + ((distKm - 50) * 1);
     }
-
     const finalFare = Math.round(fare / 10) * 10;
     return finalFare < 30 ? 30 : finalFare;
   }, []);
 
-  // 🔥 Vehicle -> Seats Logic Configuration
   const getAvailableSeats = (v: string) => {
     if (v === "bike") return [1];
     if (v === "auto") return [1, 2, 3];
@@ -168,7 +162,6 @@ export default function PostRide() {
   };
   const availableSeatsArr = getAvailableSeats(vehicleVal);
 
-  // 🔥 Auto-correct seats if vehicle changes (e.g. from Car(4) to Bike(1))
   useEffect(() => {
     const maxAllowed = Math.max(...availableSeatsArr);
     if (parseInt(seatsVal) > maxAllowed) {
@@ -181,24 +174,15 @@ export default function PostRide() {
     try {
       const res  = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
       const data = await res.json();
-
-      const rawName = data.name
-        || data.address?.amenity
-        || data.address?.road
-        || data.address?.suburb
-        || data.display_name?.split(",")[0]
-        || "Selected from Map";
-
+      const rawName = data.name || data.address?.amenity || data.address?.road || data.address?.suburb || data.display_name?.split(",")[0] || "Selected from Map";
       const cityOrState = data.address?.city || data.address?.town || data.address?.state_district || data.address?.state || "";
       const final = cityOrState && !rawName.includes(cityOrState) ? `${rawName}, ${cityOrState}` : rawName;
-
       setValue(type === "pickup" ? "from" : "to", final, { shouldValidate: true });
     } catch (e) {
       console.error("Reverse geocode failed:", e);
     }
   }, [setValue]);
 
-  // ── Auto-detect location on mount ───────────────────────────────────────
   useEffect(() => {
     if (!navigator.geolocation) { setValue("from", "Fetching failed..."); return; }
     setIsLocating(true);
@@ -261,7 +245,6 @@ export default function PostRide() {
     const coords: [number, number] = [parseFloat(place.lat), parseFloat(place.lon)];
     const nameArr = place.display_name.split(",");
     const name = nameArr.slice(0, Math.min(3, nameArr.length)).join(",").trim();
-
     if (type === "pickup") { setPickupCoords(coords); setValue("from", name, { shouldValidate: true }); setPickupSugg([]); }
     else                   { setDropCoords(coords);   setValue("to",   name, { shouldValidate: true }); setDropSugg([]); }
   }, [setValue]);
@@ -297,8 +280,6 @@ export default function PostRide() {
           const distInKm = data.routes[0].distance / 1000;
           setDistance(distInKm.toFixed(1));
           setDuration(Math.round(data.routes[0].duration / 60).toString());
-
-          // Setting calculated price
           setPrice(calculateFare(distInKm, vehicleVal));
         }
       })
@@ -318,10 +299,8 @@ export default function PostRide() {
     let finalDepartureTimeStr = "";
     let rideTypeFlag = "";
 
-    // 🔥 Date Time submission logic based on Ride Mode
     if (data.rideMode === "instant") {
       const now = new Date();
-      // Formats current time to local ISO format e.g. "2024-05-28T14:30:00"
       now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
       finalDepartureTimeStr = now.toISOString().slice(0, 19);
       rideTypeFlag = "INSTANT";
@@ -371,10 +350,42 @@ export default function PostRide() {
     }
   };
 
-  // ─── KYC gate ──────────────────────────────────────────────────────────────
+  // ─── GATEKEEPING: Role Check & KYC ──────────────────────────────────────────
   if (auth) {
     const role     = String(auth.role || "").toUpperCase();
     const isDriver = role.includes("RIDER") || role.includes("DRIVER");
+    const isAdmin  = role.includes("ADMIN");
+
+    // 🔥 1. BLOCK PASSENGERS (USER ROLE ONLY)
+    if (!isDriver && !isAdmin) {
+      return (
+        <div className="min-h-[70vh] flex items-center justify-center px-4">
+          <Card className="max-w-md w-full shadow-xl border-0 overflow-hidden">
+            <div className="h-2 w-full bg-blue-500" />
+            <CardContent className="pt-10 pb-10 flex flex-col items-center text-center gap-4">
+              <div className="h-20 w-20 rounded-full bg-blue-50 flex items-center justify-center">
+                <Car className="h-10 w-10 text-blue-500" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-extrabold text-slate-900">Passenger Account</h2>
+                <p className="text-slate-500 mt-2 text-sm leading-relaxed max-w-sm">
+                  You are currently registered as a Passenger. To post a ride and share your journey, you need to upgrade your account to a Driver.
+                </p>
+              </div>
+              <div className="flex gap-3 mt-4">
+                <Button variant="outline" asChild><Link to="/">Go Home</Link></Button>
+                <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all active:scale-95" asChild>
+                  {/* 🔥 Sends user directly to Profile page for upgrade */}
+                  <Link to="/profile">Upgrade to Driver</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
+    // 2. KYC CHECK FOR DRIVERS
     if (isDriver && auth.kycStatus !== "APPROVED") {
       const isRejected = auth.kycStatus === "REJECTED";
       return (
@@ -581,7 +592,6 @@ export default function PostRide() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {/* 🔥 Dynamic Seats array map based on Vehicle */}
                           {availableSeatsArr.map(n => (
                             <SelectItem key={n} value={String(n)}>
                               <span className="flex items-center gap-2">
