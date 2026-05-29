@@ -14,7 +14,7 @@ import {
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
-// 🔥 NAYA IMPORT: Supabase Client 🔥
+// 🔥 Supabase Client 🔥
 import { createClient } from "@supabase/supabase-js";
 
 // --- SCHEMAS ---
@@ -118,6 +118,7 @@ const verifyOtpBackend = async (email: string, otp: string) => {
 };
 
 // ================= SUPABASE HELPER =================
+// 🚨 ALERT: Dhyan rahe aapke .env (Vite) mein yahan 'anon' key ho, 'service_role' key nahi!
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "YOUR_SUPABASE_URL";
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "YOUR_SUPABASE_ANON_KEY";
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -125,8 +126,12 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const uploadToSupabase = async (file: File) => {
   const fileExt = file.name.split('.').pop();
   const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+
+  // KYC Docs folder ke andar file jayegi
   const filePath = `kyc-docs/${fileName}`;
-  const bucketName = "ridelink-docs";
+
+  // 🔥 FIX: Bucket name update kar diya gaya hai exactly Supabase se match karne ke liye
+  const bucketName = "KYC-Document";
 
   const { data, error } = await supabase.storage
     .from(bucketName)
@@ -136,7 +141,7 @@ const uploadToSupabase = async (file: File) => {
     });
 
   if (error) {
-    throw new Error(`Supabase upload failed: ${error.message}`);
+    throw new Error(`Upload failed: ${error.message}`);
   }
 
   const { data: publicUrlData } = supabase.storage
@@ -215,7 +220,7 @@ export default function Login() {
 
       localStorage.setItem("ridelink:auth", JSON.stringify({
         token: authData.token || authData.jwt,
-        refreshToken: authData.refreshToken || authData.refresh_token, // 🔥 FIX ADDED
+        refreshToken: authData.refreshToken || authData.refresh_token,
         id: authData.id,
         role: assignedRole,
         email: authData.email,
@@ -226,7 +231,7 @@ export default function Login() {
       toast.success("Successfully logged in!");
 
       setTimeout(() => {
-        window.location.replace(redirectTo); // 🔥 UNCOMMENTED
+        window.location.replace(redirectTo);
       }, 500);
 
     } catch (error: any) {
@@ -254,7 +259,7 @@ export default function Login() {
 
       localStorage.setItem("ridelink:auth", JSON.stringify({
         token: authData.jwt || authData.token,
-        refreshToken: authData.refreshToken || authData.refresh_token, // 🔥 FIX ADDED
+        refreshToken: authData.refreshToken || authData.refresh_token,
         id: authData.id,
         role: "user",
         name: details.name,
@@ -280,7 +285,7 @@ export default function Login() {
 
     try {
       setIsSubmitting(true);
-      toast.info("Uploading documents to Supabase, please wait...");
+      toast.info("Uploading documents securely...");
 
       const licenseUrl = await uploadToSupabase(docs.license);
       const rcUrl = await uploadToSupabase(docs.rc);
