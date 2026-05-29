@@ -2,6 +2,7 @@ package com.Ridelink.RideLink.Service.Impl;
 
 import com.Ridelink.RideLink.Service.EmailService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
@@ -12,11 +13,15 @@ public class EmailServiceImpl implements EmailService {
     @Autowired
     private JavaMailSender mailSender;
 
+
+    @Value("${MALE_USERNAME}")
+    private String senderEmail;
+
     @Override
     public void sendSimpleEmail(String to, String subject, String body) {
         try {
             SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom("ridelink@ecoride.com"); // Wahi email jo properties me hai (abhi ke liye dummy emai;)
+            message.setFrom(senderEmail); // Wahi email jo properties me hai (abhi ke liye dummy emai;)
             message.setTo(to);
             message.setSubject(subject);
             message.setText(body);
