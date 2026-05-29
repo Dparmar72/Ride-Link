@@ -128,7 +128,7 @@ const uploadToSupabase = async (file: File) => {
   const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
 
   // KYC Docs folder ke andar file jayegi
-  const filePath = `kyc-docs/${fileName}`;
+  const filePath = `${fileName}`;
 
   // 🔥 FIX: Bucket name update kar diya gaya hai exactly Supabase se match karne ke liye
   const bucketName = "KYC-Document";
