@@ -173,7 +173,7 @@ function OtpRevealModal({ email, onVerified, onClose }: { email: string; onVerif
     if (isSending || resendCooldown > 0) return;
     setIsSending(true); setError(null);
     try {
-      const res = await fetch("http://localhost:9090/api/auth/send-otp", {
+      const res = await fetch("https://ride-link-backend.onrender.com/api/auth/send-otp", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, type: "login" }),
       });
@@ -222,7 +222,7 @@ function OtpRevealModal({ email, onVerified, onClose }: { email: string; onVerif
     if (fullOtp.length !== OTP_LENGTH) { setError("Enter all 6 digits."); return; }
     setIsVerifying(true); setError(null);
     try {
-      const res = await fetch("http://localhost:9090/api/auth/verify-otp", {
+      const res = await fetch("https://ride-link-backend.onrender.com/api/auth/verify-otp", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, otp: fullOtp }),
       });
@@ -335,7 +335,7 @@ export default function Profile() {
 
   const fetchUserProfile = async (authObj: any) => {
     try {
-      const res = await fetch(`http://localhost:9090/api/users/${authObj.id || authObj.userId}`, { headers: { Authorization: `Bearer ${authObj.token}` } });
+      const res = await fetch(`https://ride-link-backend.onrender.com/api/users/${authObj.id || authObj.userId}`, { headers: { Authorization: `Bearer ${authObj.token}` } });
       if (res.ok) {
         const data = await res.json();
         setUser(data);
@@ -389,7 +389,7 @@ export default function Profile() {
     try {
       const authData = JSON.parse(localStorage.getItem("ridelink:auth") || "{}");
       const userId = authData?.id || authData?.userId;
-      const res = await fetch(`http://localhost:9090/api/users/${userId}/upi`, {
+      const res = await fetch(`https://ride-link-backend.onrender.com/api/users/${userId}/upi`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${authData.token}` },
         body: JSON.stringify({ upiId: trimmed }),
@@ -422,7 +422,7 @@ export default function Profile() {
     try {
       const authData = JSON.parse(localStorage.getItem("ridelink:auth") || "{}");
       const userId = authData?.id || authData?.userId;
-      const res = await fetch(`http://localhost:9090/api/users/${userId}`, {
+      const res = await fetch(`https://ride-link-backend.onrender.com/api/users/${userId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${authData.token}` },
         body: JSON.stringify(editForm),
@@ -460,7 +460,7 @@ export default function Profile() {
       ]);
 
       // 2. Call existing update-kyc API
-      const resKyc = await fetch(`http://localhost:9090/api/auth/update-kyc?userId=${userId}`, {
+      const resKyc = await fetch(`https://ride-link-backend.onrender.com/api/auth/update-kyc?userId=${userId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${authData.token}` },
         body: JSON.stringify({ licenseUrl, rcUrl }),
@@ -476,7 +476,7 @@ export default function Profile() {
         role: "DRIVER" // 🔥 Promoting role to driver
       };
 
-      const resUser = await fetch(`http://localhost:9090/api/users/${userId}`, {
+      const resUser = await fetch(`https://ride-link-backend.onrender.com/api/users/${userId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${authData.token}` },
         body: JSON.stringify(updatedProfilePayload),

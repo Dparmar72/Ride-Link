@@ -111,10 +111,10 @@ export default function DriverDashboard() {
 
     try {
       const [pendingRes, ridesRes] = await Promise.all([
-        fetch(`http://localhost:9090/api/bookings/driver/${driverId}/pending`, {
+        fetch(`https://ride-link-backend.onrender.com/api/bookings/driver/${driverId}/pending`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch(`http://localhost:9090/api/rides/driver/${driverId}`, {
+        fetch(`https://ride-link-backend.onrender.com/api/rides/driver/${driverId}`, {
           headers: { Authorization: `Bearer ${token}` },
         }).catch(() => null),
       ]);
@@ -190,7 +190,7 @@ export default function DriverDashboard() {
   useEffect(() => {
     if (!manageRideId) return;
 
-    const socket = new SockJS("http://localhost:9090/ws-provider");
+    const socket = new SockJS("https://ride-link-backend.onrender.com/ws-provider");
     const client = new Client({
       webSocketFactory: () => socket,
       reconnectDelay: 5000,
@@ -239,7 +239,7 @@ export default function DriverDashboard() {
     setManageRideId(rideId);
     setIsLoadingBookings(true);
     try {
-      const res = await fetch(`http://localhost:9090/api/bookings/ride/${rideId}`, {
+      const res = await fetch(`https://ride-link-backend.onrender.com/api/bookings/ride/${rideId}`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (res.ok) setRideBookings(await res.json());
@@ -258,7 +258,7 @@ export default function DriverDashboard() {
   const handleAccept = async (bookingId: number) => {
     setProcessingId(bookingId);
     try {
-      const res = await fetch(`http://localhost:9090/api/bookings/${bookingId}/accept`, {
+      const res = await fetch(`https://ride-link-backend.onrender.com/api/bookings/${bookingId}/accept`, {
         method: "PUT", headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (res.ok) { toast.success("Request accepted!"); setPendingRequests(p => p.filter(r => r.id !== bookingId)); fetchDashboardData(); }
@@ -270,7 +270,7 @@ export default function DriverDashboard() {
   const handleReject = async (bookingId: number) => {
     setProcessingId(bookingId);
     try {
-      const res = await fetch(`http://localhost:9090/api/bookings/${bookingId}/reject`, {
+      const res = await fetch(`https://ride-link-backend.onrender.com/api/bookings/${bookingId}/reject`, {
         method: "PUT", headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (res.ok) { toast.success("Request rejected."); setPendingRequests(p => p.filter(r => r.id !== bookingId)); }
@@ -283,7 +283,7 @@ export default function DriverDashboard() {
     if (!window.confirm("Cancel this passenger's booking? This frees their seat(s).")) return;
     setProcessingId(bookingId);
     try {
-      const res = await fetch(`http://localhost:9090/api/bookings/${bookingId}/driver-cancel`, {
+      const res = await fetch(`https://ride-link-backend.onrender.com/api/bookings/${bookingId}/driver-cancel`, {
         method: "PUT", headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (res.ok) { toast.success("Passenger removed."); setRideBookings(p => p.filter(b => b.id !== bookingId)); fetchDashboardData(); }
@@ -297,7 +297,7 @@ export default function DriverDashboard() {
     if (!/^\d{4}$/.test(otp)) { toast.error("Enter a valid 4-digit OTP."); return; }
     setVerifyingId(bookingId);
     try {
-      const res = await fetch(`http://localhost:9090/api/bookings/verify-otp`, {
+      const res = await fetch(`https://ride-link-backend.onrender.com/api/bookings/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({ rideId: manageRideId, otp }),
@@ -314,7 +314,7 @@ export default function DriverDashboard() {
   const handleFinalEndPassengerRide = async (bookingId: number) => {
     setEndingBookingId(bookingId);
     try {
-      const res = await fetch(`http://localhost:9090/api/bookings/${bookingId}/end-ride`, {
+      const res = await fetch(`https://ride-link-backend.onrender.com/api/bookings/${bookingId}/end-ride`, {
         method: "PUT", headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (res.ok) { toast.success("Payment confirmed & passenger dropped!"); setPaymentBooking(null); setRideBookings(p => p.filter(b => b.id !== bookingId)); }
@@ -327,7 +327,7 @@ export default function DriverDashboard() {
     if (!window.confirm("End the entire journey? Ensure all passengers are dropped.")) return;
     setRideOperationId(rideId);
     try {
-      const res = await fetch(`http://localhost:9090/api/rides/${rideId}/complete`, {
+      const res = await fetch(`https://ride-link-backend.onrender.com/api/rides/${rideId}/complete`, {
         method: "PUT", headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (res.ok) toast.success("Journey completed successfully!");
@@ -342,7 +342,7 @@ export default function DriverDashboard() {
     if (!window.confirm("WARNING: This cancels all active passenger bookings. Proceed?")) return;
     setRideOperationId(rideId);
     try {
-      const res = await fetch(`http://localhost:9090/api/rides/${rideId}/cancel`, {
+      const res = await fetch(`https://ride-link-backend.onrender.com/api/rides/${rideId}/cancel`, {
         method: "PUT", headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (res.ok) toast.success("Ride cancelled.");

@@ -69,7 +69,7 @@ function useOtp() {
 
       const requestType = isLoginMode ? "login" : "register";
 
-      const response = await fetch("http://localhost:9090/api/auth/send-otp", {
+      const response = await fetch("https://ride-link-backend.onrender.com/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email, type: requestType })
@@ -108,7 +108,7 @@ function useOtp() {
 }
 
 const verifyOtpBackend = async (email: string, otp: string) => {
-  const response = await fetch("http://localhost:9090/api/auth/verify-otp", {
+  const response = await fetch("https://ride-link-backend.onrender.com/api/auth/verify-otp", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email: email, otp: otp })
@@ -195,7 +195,7 @@ export default function Login() {
       setIsSubmitting(true);
       await verifyOtpBackend(data.email, data.otp);
 
-      const response = await fetch("http://localhost:9090/api/auth/login", {
+      const response = await fetch("https://ride-link-backend.onrender.com/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: data.email, password: data.password })
@@ -238,13 +238,13 @@ export default function Login() {
   // ================= 2. REGISTER PASSENGER SUBMIT =================
   const registerPassengerBackend = async (details: RegistrationValues) => {
     try {
-      await fetch("http://localhost:9090/api/auth/register", {
+      await fetch("https://ride-link-backend.onrender.com/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fullName: details.name, email: details.email, password: details.password, phone: details.phone, role: "USER" })
       });
 
-      const loginRes = await fetch("http://localhost:9090/api/auth/login", {
+      const loginRes = await fetch("https://ride-link-backend.onrender.com/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: details.email, password: details.password })
@@ -285,7 +285,7 @@ export default function Login() {
       const licenseUrl = await uploadToSupabase(docs.license);
       const rcUrl = await uploadToSupabase(docs.rc);
 
-      await fetch("http://localhost:9090/api/auth/register", {
+      await fetch("https://ride-link-backend.onrender.com/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -299,7 +299,7 @@ export default function Login() {
         })
       });
 
-      const loginRes = await fetch("http://localhost:9090/api/auth/login", {
+      const loginRes = await fetch("https://ride-link-backend.onrender.com/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: registrationData.email, password: registrationData.password })

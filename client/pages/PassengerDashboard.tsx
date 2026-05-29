@@ -118,7 +118,7 @@ export default function PassengerDashboard() {
     if (!passengerId) return;
 
     try {
-      const res = await fetch(`http://localhost:9090/api/bookings/passenger/${passengerId}`, {
+      const res = await fetch(`https://ride-link-backend.onrender.com/api/bookings/passenger/${passengerId}`, {
         headers: { Authorization: `Bearer ${auth.token}` },
       });
       if (res.status === 401) { navigate("/login"); return; }
@@ -157,7 +157,7 @@ export default function PassengerDashboard() {
       setProcessingPay(booking.id);
       const authData = getAuth();
 
-      const res = await fetch(`http://localhost:9090/api/payments/create-order/${booking.id}`, {
+      const res = await fetch(`https://ride-link-backend.onrender.com/api/payments/create-order/${booking.id}`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${authData.token}` }
       });
@@ -180,7 +180,7 @@ export default function PassengerDashboard() {
         handler: async function (response: any) {
           toast.success(`Payment Successful!`);
 
-          await fetch(`http://localhost:9090/api/payments/verify`, {
+          await fetch(`https://ride-link-backend.onrender.com/api/payments/verify`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -217,7 +217,7 @@ export default function PassengerDashboard() {
     selfCancelRef.current.add(bookingId);
     try {
       const token = getAuth()?.token;
-      const res = await fetch(`http://localhost:9090/api/bookings/${bookingId}/cancel`, {
+      const res = await fetch(`https://ride-link-backend.onrender.com/api/bookings/${bookingId}/cancel`, {
         method: "PUT",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -287,7 +287,7 @@ export default function PassengerDashboard() {
     const myId = auth?.id || auth?.userId || 2;
     const rideId = trackingData.ride.id;
 
-    const socket = new SockJS("http://localhost:9090/ws-provider");
+    const socket = new SockJS("https://ride-link-backend.onrender.com/ws-provider");
     const client = new Client({
       webSocketFactory: () => socket,
       reconnectDelay: 5000,

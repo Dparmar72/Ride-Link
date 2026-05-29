@@ -353,7 +353,7 @@ export default function PostRide() {
         rideType:             rideTypeFlag
       };
 
-      const res = await fetch(`http://localhost:9090/api/rides/create?driverId=${auth.id}`, {
+      const res = await fetch(`https://ride-link-backend.onrender.com/api/rides/create?driverId=${auth.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.token}` },
         body: JSON.stringify(payload),

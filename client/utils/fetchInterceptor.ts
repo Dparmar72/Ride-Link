@@ -32,7 +32,7 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
 
     try {
       // 4. Chupke se naya token mangwao
-      const refreshRes = await originalFetch("http://localhost:9090/api/auth/refresh-token", {
+      const refreshRes = await originalFetch("https://ride-link-backend.onrender.com/api/auth/refresh-token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ refreshToken: authData.refreshToken })

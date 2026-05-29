@@ -73,11 +73,11 @@ export default function Account() {
         setIsLoading(true);
         const h = { Authorization: `Bearer ${token}` };
 
-        const ridesRes    = await fetch(`http://localhost:9090/api/rides/driver/${userId}`,    { headers: h });
+        const ridesRes    = await fetch(`https://ride-link-backend.onrender.com/api/rides/driver/${userId}`,    { headers: h });
         const ridesData   = await ridesRes.json();
         setMyRides(safeArray(ridesData));
 
-        const bookingsRes  = await fetch(`http://localhost:9090/api/bookings/passenger/${userId}`, { headers: h });
+        const bookingsRes  = await fetch(`https://ride-link-backend.onrender.com/api/bookings/passenger/${userId}`, { headers: h });
         const bookingsData = await bookingsRes.json();
         setMyBookings(safeArray(bookingsData));
       } catch {
@@ -95,7 +95,7 @@ export default function Account() {
     setIsFetchingPass(true);
     setOtpInputs({});
     try {
-      const res  = await fetch(`http://localhost:9090/api/bookings/ride/${ride.id}`, {
+      const res  = await fetch(`https://ride-link-backend.onrender.com/api/bookings/ride/${ride.id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -113,7 +113,7 @@ export default function Account() {
     setVerifyingId(bookingId);
     try {
       const res = await fetch(
-        `http://localhost:9090/api/bookings/verify-otp`,
+        `https://ride-link-backend.onrender.com/api/bookings/verify-otp`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },

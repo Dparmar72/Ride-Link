@@ -36,8 +36,8 @@ export default function AdminKyc() {
       };
 
       const [pendingRes, verifiedRes] = await Promise.all([
-        fetch("http://localhost:9090/api/admin/pending-drivers", { method: "GET", headers }),
-        fetch("http://localhost:9090/api/admin/verified-drivers", { method: "GET", headers })
+        fetch("https://ride-link-backend.onrender.com/api/admin/pending-drivers", { method: "GET", headers }),
+        fetch("https://ride-link-backend.onrender.com/api/admin/verified-drivers", { method: "GET", headers })
       ]);
 
       if (!pendingRes.ok || !verifiedRes.ok) throw new Error("Failed to fetch data");
@@ -74,7 +74,7 @@ export default function AdminKyc() {
 
   const handleAction = async (userId: number, status: string) => {
     try {
-      const res = await fetch(`http://localhost:9090/api/admin/verify-driver/${userId}?status=${status}`, {
+      const res = await fetch(`https://ride-link-backend.onrender.com/api/admin/verify-driver/${userId}?status=${status}`, {
         method: 'PUT',
         headers: { "Authorization": `Bearer ${auth.token}` }
       });

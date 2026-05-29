@@ -115,7 +115,7 @@ export default function BookRide() {
       const pid = authObj.id || authObj.userId;
       if (!pid) { setCheckingActive(false); return; }
       try {
-        const res = await fetch(`http://localhost:9090/api/bookings/passenger/${pid}`, {
+        const res = await fetch(`https://ride-link-backend.onrender.com/api/bookings/passenger/${pid}`, {
           headers: { Authorization: `Bearer ${authObj.token}` },
         });
         if (res.ok) {
@@ -226,7 +226,7 @@ export default function BookRide() {
       const authObj = JSON.parse(authData);
       if (!authObj?.token) { toast.error("Session expired. Please log in again."); return; }
 
-      const res = await fetch("http://localhost:9090/api/rides/search-instant", {
+      const res = await fetch("https://ride-link-backend.onrender.com/api/rides/search-instant", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${authObj.token}` },
         body: JSON.stringify({
@@ -254,7 +254,7 @@ export default function BookRide() {
       if (!authData || authData === "null") { toast.error("Please sign in first."); return; }
       const authObj   = JSON.parse(authData);
 
-      const res = await fetch("http://localhost:9090/api/bookings/book", {
+      const res = await fetch("https://ride-link-backend.onrender.com/api/bookings/book", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${authObj.token}` },
         body: JSON.stringify({

@@ -51,7 +51,7 @@ export default function Search() {
       setIsLoading(true);
       const formattedDate = `${date}T00:00:00`;
       const response = await fetch(
-        `http://localhost:9090/api/rides/search?source=${encodeURIComponent(source)}&destination=${encodeURIComponent(destination)}&date=${formattedDate}`
+        `https://ride-link-backend.onrender.com/api/rides/search?source=${encodeURIComponent(source)}&destination=${encodeURIComponent(destination)}&date=${formattedDate}`
       );
       if (!response.ok) throw new Error("Failed to fetch rides");
 
@@ -107,7 +107,7 @@ export default function Search() {
       setIsBooking(rideId);
 
       // 🔥 FIX: POST request with proper JSON body to avoid 500 error aur fare bhejne ke liye
-      const response = await fetch("http://localhost:9090/api/bookings/book", {
+      const response = await fetch("https://ride-link-backend.onrender.com/api/bookings/book", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
