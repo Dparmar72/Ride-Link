@@ -166,7 +166,7 @@ export default function Safety() {
         uploadToSupabase(files.license),
         uploadToSupabase(files.rc),
       ]);
-      const res = await fetch(`https://ride-link-backend.onrender.com/api/auth/update-kyc?userId=${auth.id}`, {
+      const res = await fetch(`https://ride-link-backend.onrender.com/api/users/update-kyc?userId=${auth.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.token}` },
         body: JSON.stringify({ licenseUrl, rcUrl }),

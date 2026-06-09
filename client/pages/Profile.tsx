@@ -460,7 +460,7 @@ export default function Profile() {
       ]);
 
       // 2. Call existing update-kyc API
-      const resKyc = await fetch(`https://ride-link-backend.onrender.com/api/auth/update-kyc?userId=${userId}`, {
+      const resKyc = await fetch(`https://ride-link-backend.onrender.com/api/users/update-kyc?userId=${userId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${authData.token}` },
         body: JSON.stringify({ licenseUrl, rcUrl }),

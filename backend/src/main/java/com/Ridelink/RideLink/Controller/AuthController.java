@@ -146,18 +146,7 @@ public class AuthController {
         }
     }
 
-    @PutMapping("/update-kyc")
-    public ResponseEntity<?> updateKyc(@RequestParam Long userId, @RequestBody Map<String, String> urls) {
-        return userRepository.findById(userId)
-                .map(user -> {
-                    user.setLicenseUrl(urls.get("licenseUrl"));
-                    user.setRcUrl(urls.get("rcUrl"));
-                    user.setKycStatus("PENDING"); // Admin ko notification dikhane ke liye zaroori
-                    userRepository.save(user);
-                    return ResponseEntity.ok(new MessageResponse("KYC Documents updated and sent for verification!"));
-                })
-                .orElse(ResponseEntity.notFound().build());
-    }
+
 
 
     @PostMapping("/refresh-token")
