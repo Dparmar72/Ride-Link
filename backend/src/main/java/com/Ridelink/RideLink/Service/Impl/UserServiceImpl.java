@@ -48,8 +48,8 @@ public class UserServiceImpl implements UserService {
            User user = userRepository.findById(userId).orElseThrow();
            user.setUpiId(upiId);
            userRepository.save(user);
-           String razorpayId = paymentService.setupDriverRazorpayAccount(userId);
-           System.out.println("Razorpay Escrow Account auto-created for Driver: " + razorpayId);
+
+
        }
        catch(Exception e){
            System.err.println("Razorpay account generation failed but UPI saved: " + e.getMessage());

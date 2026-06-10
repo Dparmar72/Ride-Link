@@ -3,6 +3,7 @@ package com.Ridelink.RideLink.Controller;
 import com.Ridelink.RideLink.DTO.MessageResponse;
 import com.Ridelink.RideLink.Entity.User;
 import com.Ridelink.RideLink.Repository.UserRepository;
+import com.Ridelink.RideLink.Service.PaymentService;
 import com.Ridelink.RideLink.Service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -22,13 +23,22 @@ public class UserController {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private PaymentService paymentService;
+
 
     @PutMapping("/{userId}/upi")
     public ResponseEntity<?> updateUpiId(@PathVariable Long userId, @RequestBody Map<String, String> request) {
-        boolean isUpdated = userService.updateUpiId(userId,request);
-        if (!isUpdated) {
-            return new ResponseEntity<>("Upi Id update failed", HttpStatus.BAD_REQUEST);
-        }
+
+          boolean isUpdated = userService.updateUpiId(userId,request);
+          if (!isUpdated) {
+              return new ResponseEntity<>("Upi Id update failed", HttpStatus.BAD_REQUEST);
+          }
+        try{
+            String razorpayId = paymentService.setupDriverRazorpayAccount(userId);
+      } catch (Exception e) {
+            return ResponseEntity.ok("UPI ID Updated Successfully but razorpay account not created ");
+      }
         return ResponseEntity.ok("UPI ID Updated Successfully");
     }
 
