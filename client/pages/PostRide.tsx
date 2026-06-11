@@ -172,7 +172,6 @@ export default function PostRide() {
   // ── Reverse geocode ──────────────────────────────────────────────────────
   const reverseGeocode = useCallback(async (lat: number, lng: number, type: "pickup" | "drop") => {
     try {
-      // 🔥 FIX: Added &accept-language=en to force English location names
       const res  = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=en`);
       const data = await res.json();
       const rawName = data.name || data.address?.amenity || data.address?.road || data.address?.suburb || data.display_name?.split(",")[0] || "Selected from Map";
@@ -235,7 +234,6 @@ export default function PostRide() {
     if (query.length < 3) { type === "pickup" ? setPickupSugg([]) : setDropSugg([]); return; }
     searchTimer.current = setTimeout(async () => {
       try {
-        // 🔥 FIX: Added &accept-language=en here too for consistency in auto-suggest dropdowns
         const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&accept-language=en`);
         const data = await res.json();
         type === "pickup" ? setPickupSugg(data) : setDropSugg(data);
@@ -301,7 +299,8 @@ export default function PostRide() {
     let finalDepartureTimeStr = "";
     let rideTypeFlag = "";
 
-    if (data.rideMode === "instant") {
+    // 🔥 FIX: Ab hum 'data.rideMode' ki jagah 'rideModeVal' use kar rahe hain jo seedha UI se mapped hai
+    if (rideModeVal === "instant") {
       const now = new Date();
       now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
       finalDepartureTimeStr = now.toISOString().slice(0, 19);
@@ -327,8 +326,11 @@ export default function PostRide() {
         destinationLatitude:  dropCoords[0],
         destinationLongitude: dropCoords[1],
         departureTime:        finalDepartureTimeStr,
-        totalSeats:           parseInt(data.seats),
-        vehicleType:          data.vehicle,
+
+        // 🔥 FIX: Seats aur Vehicle ki value bhi seedha watch() variables se lenge
+        totalSeats:           parseInt(seatsVal),
+        vehicleType:          vehicleVal,
+
         distanceInKm:         parseFloat(distance),
         pricePerSeat:         price,
         rideType:             rideTypeFlag
@@ -358,7 +360,7 @@ export default function PostRide() {
     const isDriver = role.includes("RIDER") || role.includes("DRIVER");
     const isAdmin  = role.includes("ADMIN");
 
-    // 🔥 1. BLOCK PASSENGERS (USER ROLE ONLY)
+    // 1. BLOCK PASSENGERS (USER ROLE ONLY)
     if (!isDriver && !isAdmin) {
       return (
         <div className="min-h-[70vh] flex items-center justify-center px-4">
