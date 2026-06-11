@@ -22,6 +22,5 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findByStatusAndPaymentStatusAndUpdatedAtBefore(String status, String paymentStatus, LocalDateTime time);
 
 
-    @Query("SELECT b FROM Booking b WHERE b.status = :status AND b.bookingTime <= :timeThreshold")
-    List<Booking> findExpiredBookings(String pending, LocalDateTime twoHoursAgo);
+
 }

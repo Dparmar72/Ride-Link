@@ -21,7 +21,7 @@ public class BookingCleanupScheduler {
         LocalDateTime twoHoursAgo = LocalDateTime.now().minusHours(2);
 
         List<Booking> unpaidBookings = bookingRepository.findByStatusAndPaymentStatusAndUpdatedAtBefore(
-                "ACCEPTED", "PENDING", twoHoursAgo
+                "CONFIRMED", "PENDING", twoHoursAgo
         );
 
         for (Booking booking : unpaidBookings) {
