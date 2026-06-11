@@ -50,10 +50,26 @@ export default function Search() {
     try {
       setIsLoading(true);
       const formattedDate = `${date}T00:00:00`;
+
+      const authData = JSON.parse(localStorage.getItem("ridelink:auth") || "{}");
+      const token = authData.token;
+
       const response = await fetch(
-        `https://ride-link-backend.onrender.com/api/rides/search?source=${encodeURIComponent(source)}&destination=${encodeURIComponent(destination)}&date=${formattedDate}`
+        `https://ride-link-backend.onrender.com/api/rides/search?source=${encodeURIComponent(source)}&destination=${encodeURIComponent(destination)}&date=${formattedDate}`,
+        {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${token}`, // Token yahan se jayega
+            "Content-Type": "application/json"
+          }
+        }
       );
-      if (!response.ok) throw new Error("Failed to fetch rides");
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error("Session expired. Please login again.");
+        }
+        throw new Error("Failed to fetch rides");
+      }
 
       const data = await response.json();
 
