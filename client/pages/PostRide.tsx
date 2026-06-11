@@ -172,7 +172,8 @@ export default function PostRide() {
   // ── Reverse geocode ──────────────────────────────────────────────────────
   const reverseGeocode = useCallback(async (lat: number, lng: number, type: "pickup" | "drop") => {
     try {
-      const res  = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+      // 🔥 FIX: Added &accept-language=en to force English location names
+      const res  = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=en`);
       const data = await res.json();
       const rawName = data.name || data.address?.amenity || data.address?.road || data.address?.suburb || data.display_name?.split(",")[0] || "Selected from Map";
       const cityOrState = data.address?.city || data.address?.town || data.address?.state_district || data.address?.state || "";
@@ -234,7 +235,8 @@ export default function PostRide() {
     if (query.length < 3) { type === "pickup" ? setPickupSugg([]) : setDropSugg([]); return; }
     searchTimer.current = setTimeout(async () => {
       try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`);
+        // 🔥 FIX: Added &accept-language=en here too for consistency in auto-suggest dropdowns
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&accept-language=en`);
         const data = await res.json();
         type === "pickup" ? setPickupSugg(data) : setDropSugg(data);
       } catch { /* ignore */ }
@@ -375,7 +377,6 @@ export default function PostRide() {
               <div className="flex gap-3 mt-4">
                 <Button variant="outline" asChild><Link to="/">Go Home</Link></Button>
                 <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all active:scale-95" asChild>
-                  {/* 🔥 Sends user directly to Profile page for upgrade */}
                   <Link to="/profile">Upgrade to Driver</Link>
                 </Button>
               </div>
