@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   MapPin, Navigation, Car, Loader2, ArrowLeft,
   Star, Search, AlertTriangle, CheckCircle2,
-  Route, Clock, ChevronRight, Zap, Home, User, Menu, X
+  Route, Clock, ChevronRight, Zap, Home, User, Menu, X, Locate
 } from "lucide-react";
 import {
   MapContainer, TileLayer, Marker, Popup,
@@ -42,15 +42,6 @@ function MapClickHandler({ onMapClick }: { onMapClick: (lat: number, lng: number
   return null;
 }
 
-/* ─── nav ────────────────────────────────────────────────────────── */
-function Navbar() {
-  const navigate = useNavigate();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const authData = JSON.parse(localStorage.getItem("ridelink:auth") || "{}");
-  const initials = (authData.name || authData.fullName || "")
-    .split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase() || null;
-}
-
 /* ─── stat pill ──────────────────────────────────────────────────── */
 function StatPill({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
@@ -69,14 +60,19 @@ export default function BookRide() {
   const [hasActiveRide,   setHasActiveRide]   = useState(false);
   const [checkingActive,  setCheckingActive]  = useState(true);
 
-  const [pickupCoords, setPickupCoords] = useState<[number, number]>([22.7243, 75.8839]);
+  // Default coordinates (used as fallback)
+  const [pickupCoords, setPickupCoords] = useState<[number, number]>([22.7196, 75.8577]); // Default Indore
   const [dropCoords,   setDropCoords]   = useState<[number, number]>([22.7533, 75.8937]);
-  const [pickupInput,  setPickupInput]  = useState("Palasia, Indore");
-  const [dropInput,    setDropInput]    = useState("Vijay Nagar, Indore");
+
+  // 🔥 REMOVED HARDCODED LOCATIONS
+  const [pickupInput,  setPickupInput]  = useState("");
+  const [dropInput,    setDropInput]    = useState("");
 
   const [activeClickTarget, setActiveClickTarget] = useState<"pickup" | "drop">("pickup");
   const [pickupSuggestions, setPickupSuggestions] = useState<any[]>([]);
   const [dropSuggestions,   setDropSuggestions]   = useState<any[]>([]);
+
+  const [isLocating, setIsLocating] = useState(false); // 🔥 For "Use My Location" loading state
 
   const [loadingRoute,    setLoadingRoute]    = useState(false);
   const [routePaths,      setRoutePaths]      = useState<[number, number][]>([]);
@@ -89,24 +85,32 @@ export default function BookRide() {
 
   const searchTimeout = useRef<any>(null);
 
-  /* ── smart fare calculation 🔥 (UPDATED TO CHEAPER FARES) ─────── */
+  /* ── GET INITIAL LIVE LOCATION ON MOUNT 🔥 ───────────────────── */
+  useEffect(() => {
+    if (navigator.geolocation && pickupInput === "") {
+      navigator.geolocation.getCurrentPosition(
+        async ({ coords }) => {
+          setPickupCoords([coords.latitude, coords.longitude]);
+          // Dont auto-fill text immediately to not surprise user, but keep coords ready.
+        },
+        () => { console.log("Location permission denied or failed."); }
+      );
+    }
+  }, []);
+
+  /* ── smart fare calculation ─────── */
   const fare = useMemo(() => {
     const distKm = parseFloat(distance) || 0;
     let calcFare = 0;
-
-    // 0 - 15 km: City traffic (₹5/km)
     if (distKm <= 15) calcFare = distKm * 5;
-    // 16 - 50 km: Outskirts (₹2/km)
     else if (distKm <= 50) calcFare = (15 * 5) + ((distKm - 15) * 2);
-    // 50+ km: Long Highway (₹1.2/km) - Sasta fare!
     else calcFare = (15 * 5) + (35 * 2) + ((distKm - 50) * 1.2);
 
-    // Round to nearest 10
     const roundedFare = Math.round(calcFare / 10) * 10;
-    return roundedFare < 30 ? 30 : roundedFare; // Minimum fare ₹30
+    return roundedFare < 30 ? 30 : roundedFare;
   }, [distance]);
 
-  /* ── check active ride (🔥 FIX: Ignored Scheduled Rides) ─────── */
+  /* ── check active ride ─────── */
   useEffect(() => {
     const check = async () => {
       const authData = localStorage.getItem("ridelink:auth");
@@ -121,12 +125,9 @@ export default function BookRide() {
         if (res.ok) {
           const data = await res.json();
           const arr = Array.isArray(data) ? data : data.content || data.data || [];
-
           setHasActiveRide(arr.some((b: any) => {
             const isActiveStatus = ["PENDING", "CONFIRMED", "ACCEPTED"].includes(b.status?.toUpperCase());
-            // Agar ride backend se aati hai toh check karo ki wo SCHEDULED toh nahi hai
             const isScheduled = b.ride?.rideType === "SCHEDULED" || b.rideType === "SCHEDULED";
-            // Sirf wahi block karegi jo Active hai AUR Scheduled NAHI hai
             return isActiveStatus && !isScheduled;
           }));
         }
@@ -136,18 +137,64 @@ export default function BookRide() {
     check();
   }, []);
 
-  /* ── autocomplete ────────────────────────────────────────────── */
+  /* ── USE MY LOCATION FUNCTION 🔥 ────────────────────────────── */
+  const handleUseMyLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error("Geolocation is not supported by your browser.");
+      return;
+    }
+
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        const lat = coords.latitude;
+        const lng = coords.longitude;
+        setPickupCoords([lat, lng]);
+        await updateAddressFromCoords(lat, lng, "pickup");
+        setIsLocating(false);
+        toast.success("Live location captured!");
+      },
+      () => {
+        setIsLocating(false);
+        toast.error("Please allow location access in your browser settings.");
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
+
+
+  /* ── autocomplete (🔥 ADDED CITY BIAS USING CURRENT COORDS) ─── */
   const handleSearch = (query: string, type: "pickup" | "drop") => {
     type === "pickup" ? setPickupInput(query) : setDropInput(query);
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
+
     if (query.length < 3) {
       type === "pickup" ? setPickupSuggestions([]) : setDropSuggestions([]);
       return;
     }
+
     searchTimeout.current = setTimeout(async () => {
       try {
-        const res  = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`);
-        const data = await res.json();
+        // 🔥 Use current pickupCoords as the center point to bias results to the user's city
+        const centerLat = pickupCoords[0];
+        const centerLng = pickupCoords[1];
+        // Calculate a bounding box (approx 50km radius) around current location
+        const offset = 0.5; // Roughly 50km in degrees
+        const viewbox = `${centerLng - offset},${centerLat + offset},${centerLng + offset},${centerLat - offset}`;
+
+        // Add viewbox and bounded=1 to strictly prefer local results
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&viewbox=${viewbox}&bounded=1&accept-language=en`;
+
+        const res  = await fetch(url);
+        let data = await res.json();
+
+        // Fallback: If strict bounding box yields 0 results (user searched outside city), search globally
+        if (data.length === 0) {
+          const fallbackUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&accept-language=en`;
+          const fallbackRes = await fetch(fallbackUrl);
+          data = await fallbackRes.json();
+        }
+
         type === "pickup" ? setPickupSuggestions(data) : setDropSuggestions(data);
       } catch { /* silent */ }
     }, 800);
@@ -164,7 +211,7 @@ export default function BookRide() {
 
   const updateAddressFromCoords = async (lat: number, lng: number, type: "pickup" | "drop") => {
     try {
-      const res  = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+      const res  = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=en`);
       const data = await res.json();
       const rawName = data.name
         || data.address?.amenity || data.address?.road
@@ -199,6 +246,9 @@ export default function BookRide() {
   /* ── route fetch ─────────────────────────────────────────────── */
   useEffect(() => {
     const fetchRoute = async () => {
+      // Don't calculate route if locations haven't been properly set yet
+      if (pickupInput === "" || dropInput === "") return;
+
       setLoadingRoute(true);
       try {
         const res  = await fetch(
@@ -215,10 +265,15 @@ export default function BookRide() {
       finally { setLoadingRoute(false); }
     };
     fetchRoute();
-  }, [pickupCoords, dropCoords]);
+  }, [pickupCoords, dropCoords, pickupInput, dropInput]);
 
   /* ── find carpools ───────────────────────────────────────────── */
   const handleFindCarpools = async () => {
+    if (!pickupInput || !dropInput) {
+      toast.error("Please select both pickup and drop locations.");
+      return;
+    }
+
     setIsSearchingRides(true);
     try {
       const authData = localStorage.getItem("ridelink:auth");
@@ -246,7 +301,7 @@ export default function BookRide() {
     finally { setIsSearchingRides(false); }
   };
 
-  /* ── send ride request (🔥 FIX: Added Fare Variables) ────────── */
+  /* ── send ride request ────────── */
   const handleSendRideRequest = async (rideId: number) => {
     setIsBooking(true);
     try {
@@ -265,8 +320,6 @@ export default function BookRide() {
           pickupLng: pickupCoords[1],
           dropLat:   dropCoords[0],
           dropLng:   dropCoords[1],
-
-          // 🔥 Backend ke variable naam se match karne ke liye humne sab bhej diya hai
           price: fare,
           fare: fare,
           pricePerSeat: fare,
@@ -352,7 +405,7 @@ export default function BookRide() {
             {/* ── SEARCH FORM ─ */}
             {!hasActiveRide && availableRides === null && (
               <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-                <div className="border-b border-slate-100 bg-slate-50 px-5 py-4">
+                <div className="border-b border-slate-100 bg-slate-50 px-5 py-4 flex justify-between items-center">
                   <div className="flex items-center gap-2">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-900 text-white">
                       <Navigation className="h-4 w-4" />
@@ -362,6 +415,18 @@ export default function BookRide() {
                       <p className="text-[11px] text-slate-500">Set your pickup & drop location</p>
                     </div>
                   </div>
+
+                  {/* 🔥 USE MY LOCATION BUTTON */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleUseMyLocation}
+                    disabled={isLocating}
+                    className="h-8 px-2 text-[10px] font-bold text-emerald-600 border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
+                  >
+                    {isLocating ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Locate className="h-3 w-3 mr-1" />}
+                    My Location
+                  </Button>
                 </div>
 
                 <div className="p-5 space-y-4">
@@ -376,7 +441,7 @@ export default function BookRide() {
                         value={pickupInput}
                         onChange={(e) => handleSearch(e.target.value, "pickup")}
                         className="pl-9 bg-slate-50 border-slate-200 font-medium focus:bg-white"
-                        placeholder="Search pickup location…"
+                        placeholder="E.g. Palasia..."
                       />
                     </div>
                     {pickupSuggestions.length > 0 && (
@@ -411,7 +476,7 @@ export default function BookRide() {
                         value={dropInput}
                         onChange={(e) => handleSearch(e.target.value, "drop")}
                         className="pl-9 bg-slate-50 border-slate-200 font-medium focus:bg-white"
-                        placeholder="Search drop location…"
+                        placeholder="E.g. Vijay Nagar..."
                       />
                     </div>
                     {dropSuggestions.length > 0 && (
@@ -428,7 +493,7 @@ export default function BookRide() {
                   </div>
 
                   {/* route stats */}
-                  {routePaths.length > 0 && (
+                  {routePaths.length > 0 && pickupInput && dropInput && (
                     <div className="relative rounded-xl border border-primary/20 bg-primary/5 p-4">
                       {loadingRoute && (
                         <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/70 backdrop-blur-sm">
@@ -495,7 +560,6 @@ export default function BookRide() {
                     </div>
                   ) : (
                     availableRides.map((ride: any, i: number) => {
-                      // 🔥 VEHICLE TYPE LOGIC
                       const vType = ride.vehicleType?.toLowerCase() || "car";
                       const vIcon = vType === "bike" ? "🏍️" : vType === "auto" ? "🛺" : "🚗";
                       const vLabel = vType === "bike" ? "Bike" : vType === "auto" ? "Auto" : "Car";
@@ -510,7 +574,6 @@ export default function BookRide() {
                               <div>
                                 <div className="flex items-center gap-2">
                                   <p className="font-bold text-sm text-slate-800">{ride.driver?.fullName || "Verified Driver"}</p>
-                                  {/* 🔥 VEHICLE TYPE BADGE */}
                                   <Badge variant="secondary" className="text-[10px] px-1.5 py-0 uppercase bg-slate-100 text-slate-600 border border-slate-200">
                                     {vIcon} {vLabel}
                                   </Badge>
@@ -585,7 +648,7 @@ export default function BookRide() {
               </div>
             </div>
 
-            {routePaths.length > 0 && (
+            {routePaths.length > 0 && pickupInput && dropInput && (
               <div className="flex flex-wrap gap-2">
                 <StatPill icon={<Route className="h-4 w-4" />}  label="Distance" value={`${distance} km`} />
                 <StatPill icon={<Clock className="h-4 w-4" />}  label="Est. time" value={`${duration} min`} />
@@ -613,7 +676,7 @@ export default function BookRide() {
                         eventHandlers={{ dragend: (e) => handleMarkerDrag(e, "drop") }}>
                   <Popup className="font-semibold">Drop location</Popup>
                 </Marker>
-                {routePaths.length > 0 && (
+                {routePaths.length > 0 && pickupInput && dropInput && (
                   <Polyline positions={routePaths} color="#2563eb" weight={5} opacity={0.85} lineCap="round" lineJoin="round" />
                 )}
                 <MapController coords={[pickupCoords, dropCoords]} />
